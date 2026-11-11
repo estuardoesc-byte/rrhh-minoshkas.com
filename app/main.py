@@ -58,7 +58,8 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 def quetzales(valor) -> str:
     try:
-        return f"Q{Decimal(valor):,.2f}"
+        v = Decimal(valor)
+        return f"-Q{-v:,.2f}" if v < 0 else f"Q{v:,.2f}"
     except (InvalidOperation, TypeError):
         return "Q0.00"
 
@@ -698,17 +699,19 @@ async def planilla_crear(request: Request, db: Session = Depends(get_db), user: 
         if db.query(Planilla).filter_by(tipo=tipo, empresa_id=empresa_id, desde=desde, hasta=hasta).first():
             continue
         p = Planilla(tipo=tipo, empresa_id=empresa_id, desde=desde, hasta=hasta, fecha_pago=pago, creada_por=user.nombre)
-        db.add(p)
-        db.flush()
         for e in empleados_del_periodo(db, empresa_id, desde, hasta):
-            linea = PlanillaLinea(planilla_id=p.id, empleado_id=e.id)
+            linea = PlanillaLinea(empleado=e)
             calcular_linea(linea, p, e, tasas)
             if linea.dias > 0:
                 p.lineas.append(linea)
+        if not p.lineas:
+            continue  # patrono sin colaboradores en el período
+        db.add(p)
+        db.flush()
         creada = creada or p
     db.commit()
     if not creada:
-        return RedirectResponse("/planillas?error=Esa+planilla+ya+existe+para+el+patrono+elegido", status_code=303)
+        return RedirectResponse("/planillas?error=Esa+planilla+ya+existe+o+el+patrono+no+tiene+colaboradores+en+el+período", status_code=303)
     return RedirectResponse(f"/planillas/{creada.id}" if len(empresa_ids) == 1 else "/planillas", status_code=303)
 
 
