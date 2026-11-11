@@ -1,0 +1,25 @@
+# Despliegue en Render (https://render.com): un servicio web con disco persistente.
+# La base de datos SQLite y los documentos viven en el disco /var/data.
+services:
+  - type: web
+    name: rrhh-minoshkas
+    runtime: python
+    plan: starter
+    region: ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:////var/data/rrhh.db
+      - key: UPLOAD_DIR
+        value: /var/data/documentos
+      - key: HTTPS_ONLY
+        value: "1"
+    disk:
+      name: datos
+      mountPath: /var/data
+      sizeGB: 5

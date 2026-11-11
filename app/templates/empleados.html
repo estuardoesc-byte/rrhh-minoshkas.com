@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Colaboradores · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Colaboradores</h1>
+  <a class="btn" href="/empleados/nuevo">Nuevo colaborador</a>
+</div>
+<form method="get" class="filtros">
+  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre, DPI o código">
+  <select name="sucursal"><option value="">Todas las sucursales</option>
+    {% for s in sucursales %}<option value="{{ s.id }}" {{ 'selected' if f_sucursal == s.id|string }}>{{ s.nombre }}</option>{% endfor %}
+  </select>
+  <select name="empresa"><option value="">Todos los patronos</option>
+    {% for p in empresas %}<option value="{{ p.id }}" {{ 'selected' if f_empresa == p.id|string }}>{{ p.razon_social }}</option>{% endfor %}
+  </select>
+  <select name="estado"><option value="todos">Todos los estados</option>
+    {% for s in estados %}<option value="{{ s }}" {{ 'selected' if f_estado == s }}>{{ s|capitalize }}</option>{% endfor %}
+  </select>
+  <button class="btn secundario">Filtrar</button>
+</form>
+<div class="tabla-scroll">
+<table class="tarjeta">
+  <thead><tr><th></th><th>Código</th><th>Nombre</th><th>Puesto</th><th>Sucursal</th><th>Patrono</th><th>Ingreso</th><th class="num">Salario base</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for e in lista %}
+    <tr>
+      <td>{% if e.foto %}<img class="mini" src="/documentos/{{ e.foto.id }}" alt="">{% else %}<span class="mini vacia">{{ e.nombres[:1] }}</span>{% endif %}</td>
+      <td>{{ e.codigo }}</td>
+      <td><a href="/empleados/{{ e.id }}">{{ e.nombre_completo }}</a></td>
+      <td>{{ e.puesto }}</td>
+      <td>{{ e.sucursal.nombre if e.sucursal }}</td>
+      <td>{{ e.empresa.razon_social if e.empresa }}</td>
+      <td>{{ e.fecha_ingreso|fecha }}</td>
+      <td class="num">{{ e.salario_base|q }}</td>
+      <td><span class="etiqueta {{ 'verde' if e.estado == 'activo' else 'gris' }}">{{ e.estado }}</span></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9" class="sutil">No hay colaboradores con esos filtros.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="sutil">{{ lista|length }} colaborador(es).</p>
+{% endblock %}

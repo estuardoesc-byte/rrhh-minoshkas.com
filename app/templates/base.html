@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}RRHH Minoshkas{% endblock %}</title>
+  <link rel="stylesheet" href="/static/estilo.css">
+</head>
+<body>
+{% if user %}
+<header class="barra">
+  <a class="marca" href="/">RRHH <strong>Minoshkas</strong></a>
+  <nav>
+    <a href="/" class="{{ 'activo' if request.url.path == '/' }}">Inicio</a>
+    <a href="/empleados" class="{{ 'activo' if request.url.path.startswith('/empleados') }}">Colaboradores</a>
+    <a href="/empresas" class="{{ 'activo' if request.url.path.startswith('/empresas') }}">Patronos</a>
+    <a href="/sucursales" class="{{ 'activo' if request.url.path.startswith('/sucursales') }}">Sucursales</a>
+    <a href="/parametros" class="{{ 'activo' if request.url.path.startswith('/parametros') }}">Parámetros</a>
+  </nav>
+  <form method="post" action="/logout" class="salir">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <span>{{ user.nombre }}</span>
+    <button type="submit" class="btn-link">Salir</button>
+  </form>
+</header>
+{% endif %}
+<main class="contenido">
+{% block contenido %}{% endblock %}
+</main>
+</body>
+</html>

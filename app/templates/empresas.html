@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Patronos · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>Patronos</h1>
+<p class="sutil">Cada patrono tiene su propio número patronal de IGSS y su libro de salarios. La nómina se separa por patrono.</p>
+{% for p in lista %}
+<form method="post" action="/empresas" class="tarjeta fila-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}">
+  <label>Razón social<input name="razon_social" value="{{ p.razon_social }}" required></label>
+  <label>Nombre comercial<input name="nombre_comercial" value="{{ p.nombre_comercial }}"></label>
+  <label>NIT<input name="nit" value="{{ p.nit }}"></label>
+  <label>No. patronal IGSS<input name="numero_patronal_igss" value="{{ p.numero_patronal_igss }}"></label>
+  <label class="check"><input type="checkbox" name="activa" value="1" {{ 'checked' if p.activa }}> Activo</label>
+  <button class="btn secundario">Guardar</button>
+</form>
+{% endfor %}
+<h2>Agregar patrono</h2>
+<form method="post" action="/empresas" class="tarjeta fila-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Razón social<input name="razon_social" required></label>
+  <label>Nombre comercial<input name="nombre_comercial"></label>
+  <label>NIT<input name="nit"></label>
+  <label>No. patronal IGSS<input name="numero_patronal_igss"></label>
+  <input type="hidden" name="activa" value="1">
+  <button class="btn">Agregar</button>
+</form>
+{% endblock %}

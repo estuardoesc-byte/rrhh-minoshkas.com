@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% macro dato(etiqueta, valor) -%}
+<div class="dato"><span>{{ etiqueta }}</span><strong>{{ valor if valor not in (none, '') else '—' }}</strong></div>
+{%- endmacro %}
+{% block titulo %}{{ e.nombre_completo }} · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<div class="perfil tarjeta">
+  {% if e.foto %}<img class="foto" src="/documentos/{{ e.foto.id }}" alt="Foto de {{ e.nombre_completo }}">{% else %}<div class="foto vacia">{{ e.nombres[:1] }}{{ e.apellidos[:1] }}</div>{% endif %}
+  <div class="perfil-texto">
+    <h1>{{ e.nombre_completo }}</h1>
+    <p>{{ e.puesto or 'Sin puesto' }} · {{ e.sucursal.nombre if e.sucursal else 'Sin sucursal' }} · <span class="etiqueta {{ 'verde' if e.estado == 'activo' else 'gris' }}">{{ e.estado }}</span></p>
+    <p class="sutil">Código {{ e.codigo }} · Patrono: {{ e.empresa.razon_social if e.empresa else 'sin asignar' }}</p>
+  </div>
+  <a class="btn" href="/empleados/{{ e.id }}/editar">Editar ficha</a>
+</div>
+
+{% if e.tarjeta_salud_vence and e.tarjeta_salud_vence < hoy %}
+<p class="alerta">La tarjeta de salud venció el {{ e.tarjeta_salud_vence|fecha }}.</p>
+{% endif %}
+
+<div class="columnas">
+  <section class="tarjeta">
+    <h2>Datos personales</h2>
+    <div class="datos">
+      {{ dato("DPI", e.dpi) }}{{ dato("NIT", e.nit) }}{{ dato("Afiliación IGSS", e.afiliacion_igss) }}
+      {{ dato("Nacimiento", e.fecha_nacimiento|fecha) }}{{ dato("Sexo", e.sexo) }}{{ dato("Estado civil", e.estado_civil) }}
+      {{ dato("Nacionalidad", e.nacionalidad) }}{{ dato("Teléfono", e.telefono) }}{{ dato("Correo", e.email) }}
+      {{ dato("Hijos", e.numero_hijos) }}{{ dato("Nivel académico", e.nivel_academico) }}{{ dato("Dirección", e.direccion) }}
+    </div>
+  </section>
+  <section class="tarjeta">
+    <h2>Datos laborales</h2>
+    <div class="datos">
+      {{ dato("Ingreso", e.fecha_ingreso|fecha) }}{{ dato("Contrato", e.tipo_contrato) }}{{ dato("Fin de contrato", e.fecha_fin_contrato|fecha) }}
+      {{ dato("Jornada", e.jornada) }}{{ dato("Salario base", e.salario_base|q) }}{{ dato("Bonificación incentivo", e.bonificacion_incentivo|q) }}
+      {{ dato("Vacaciones pendientes al ingreso", e.vacaciones_previas) }}{{ dato("Fecha de baja", e.fecha_baja|fecha) }}{{ dato("Motivo de baja", e.motivo_baja) }}
+    </div>
+  </section>
+  <section class="tarjeta">
+    <h2>Contactos y salud</h2>
+    <div class="datos">
+      {{ dato("Emergencia", e.emergencia_nombre) }}{{ dato("Parentesco", e.emergencia_parentesco) }}{{ dato("Teléfono", e.emergencia_telefono) }}
+      {{ dato("Tarjeta de salud", e.tarjeta_salud_numero) }}{{ dato("Vence", e.tarjeta_salud_vence|fecha) }}{{ dato("Beneficiarios", e.beneficiarios) }}
+    </div>
+    {% if e.notas %}<p class="nota">{{ e.notas }}</p>{% endif %}
+  </section>
+</div>
+
+<section class="tarjeta" id="documentos">
+  <h2>Expediente</h2>
+  <form method="post" action="/empleados/{{ e.id }}/documentos" enctype="multipart/form-data" class="subir">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <select name="tipo" required>{% for t in tipos %}<option value="{{ t }}">{{ nombres_doc[t] }}</option>{% endfor %}</select>
+    <input type="text" name="descripcion" placeholder="Descripción (opcional)">
+    <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" required>
+    <button class="btn">Subir</button>
+  </form>
+  <p class="sutil">PDF, JPG o PNG de hasta {{ max_mb }} MB. Una foto nueva reemplaza la anterior.</p>
+  <table>
+    <thead><tr><th>Tipo</th><th>Archivo</th><th>Subido</th><th>Por</th><th></th></tr></thead>
+    <tbody>
+    {% for d in e.documentos %}
+      <tr>
+        <td>{{ d.nombre_tipo }}{% if d.descripcion %}<br><span class="sutil">{{ d.descripcion }}</span>{% endif %}</td>
+        <td><a href="/documentos/{{ d.id }}" target="_blank" rel="noopener">{{ d.nombre_original }}</a> <span class="sutil">({{ (d.tamano / 1024)|round|int }} KB)</span></td>
+        <td>{{ d.subido.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ d.subido_por }}</td>
+        <td class="acciones-fila">
+          <a href="/documentos/{{ d.id }}?descargar=1">Descargar</a>
+          <form method="post" action="/documentos/{{ d.id }}/eliminar" onsubmit="return confirm('¿Eliminar este documento?')">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn-link peligro">Eliminar</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="sutil">Todavía no hay documentos.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="tarjeta">
+  <h2>Historial</h2>
+  <table>
+    <thead><tr><th>Fecha</th><th>Cambio</th><th>Antes</th><th>Después</th><th>Por</th></tr></thead>
+    <tbody>
+    {% for h in e.historial %}
+      <tr><td>{{ h.fecha.strftime('%d/%m/%Y') }}</td><td>{{ h.campo }}</td><td>{{ h.valor_anterior }}</td><td>{{ h.valor_nuevo }}</td><td>{{ h.usuario }}</td></tr>
+    {% else %}<tr><td colspan="5" class="sutil">Sin cambios registrados.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
