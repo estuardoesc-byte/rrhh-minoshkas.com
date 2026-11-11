@@ -44,7 +44,7 @@ Pruebas automáticas: `pytest`.
 
 ## Instalarlo en una computadora de la oficina (sin costo)
 
-Es la opción elegida. Guía completa en [`instalacion/PUBLICAR.md`](instalacion/PUBLICAR.md): instalador para Windows, arranque automático, respaldo diario a Google Drive y dirección `rrhh.minoshkas.com` con un túnel gratuito de Cloudflare.
+Es la opción elegida. Guía completa en [`instalacion/PUBLICAR.md`](instalacion/PUBLICAR.md): `INSTALAR.bat` de doble clic, arranque automático, respaldo diario a Google Drive y acceso privado con Tailscale (sin tocar el dominio, GoDaddy ni Google).
 
 ## Alternativa pagada: Render
 

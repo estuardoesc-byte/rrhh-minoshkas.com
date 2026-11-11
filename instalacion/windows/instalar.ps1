@@ -1,5 +1,5 @@
-# Instalador de RRHH Minoshkas para Windows 10/11.
-# Uso: clic derecho sobre este archivo > "Ejecutar con PowerShell" (como administrador).
+﻿# Instalador de RRHH Minoshkas para Windows 10/11.
+# Uso: doble clic en INSTALAR.bat (en la carpeta principal). Pide permiso de administrador.
 # Es seguro correrlo de nuevo para actualizar la aplicación: no borra datos.
 
 $ErrorActionPreference = "Stop"
@@ -77,8 +77,64 @@ if ($drive) {
     Write-Host "No encontré Google Drive para escritorio. Instálalo y vuelve a correr este instalador para activar el respaldo diario." -ForegroundColor Yellow
 }
 
-Start-Sleep -Seconds 4
+# 8. Tailscale: red privada para entrar desde los equipos de los administradores.
+#    No toca el dominio, GoDaddy, Google ni el router.
+Paso "Instalando Tailscale (red privada)"
+$ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
+if (-not (Test-Path $ts)) {
+    winget install -e --id Tailscale.Tailscale --accept-package-agreements --accept-source-agreements
+    Start-Sleep -Seconds 8
+}
+
+# Corre un comando de tailscale y, si pide entrar o autorizar algo, abre el navegador solo.
+function Tailscale-ConNavegador([string[]]$argumentos, [string]$mensaje) {
+    $out = Join-Path $env:TEMP "rrhh-ts-out.txt"; $err = Join-Path $env:TEMP "rrhh-ts-err.txt"
+    Remove-Item $out, $err -ErrorAction SilentlyContinue
+    $p = Start-Process $ts -ArgumentList $argumentos -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+    $abierto = $false
+    while (-not $p.HasExited) {
+        $texto = ((Get-Content $out, $err -Raw -ErrorAction SilentlyContinue) -join "`n")
+        if (-not $abierto -and $texto -match 'https://login\.tailscale\.com/\S+') {
+            Write-Host $mensaje -ForegroundColor Yellow
+            Start-Process $Matches[0]
+            $abierto = $true
+        }
+        Start-Sleep -Seconds 2
+    }
+}
+
+$estado = (& $ts status --json 2>$null | ConvertFrom-Json)
+if (-not $estado -or $estado.BackendState -ne "Running") {
+    Tailscale-ConNavegador @("up", "--unattended") `
+        "Se abrió el navegador: elige 'Sign in with Google' y entra con esantacruz@minoshkas.com. Luego regresa a esta ventana."
+}
+
+Paso "Publicando la aplicación dentro de la red privada (con candado HTTPS)"
+Tailscale-ConNavegador @("serve", "--bg", "8000") `
+    "Se abrió el navegador: presiona 'Enable' para permitir HTTPS en tu red. Luego regresa a esta ventana."
+
+$nombre = ((& $ts status --json | ConvertFrom-Json).Self.DNSName).TrimEnd(".")
+$url = "https://$nombre"
+Set-Content -Encoding UTF8 "$Destino\direccion.txt" $url
+@"
+[InternetShortcut]
+URL=$url
+"@ | Set-Content -Encoding ASCII "$env:PUBLIC\Desktop\RRHH Minoshkas.url"
+
+# 9. Usuarios administradores
+Start-Sleep -Seconds 3
+Paso "Usuarios de la aplicación"
+Write-Host "Crea los usuarios (Sandra Marquez, Julio Santa Cruz, Estuardo). Deja el nombre vacío para terminar."
+Push-Location $Destino
+while ($true) {
+    $n = Read-Host "Nombre completo (Enter para terminar)"
+    if ([string]::IsNullOrWhiteSpace($n)) { break }
+    $c = Read-Host "Correo"
+    & "$Destino\.venv\Scripts\python.exe" -m scripts.crear_usuario $n $c
+}
+Pop-Location
+
 Paso "Listo"
-Write-Host "La aplicación corre en http://localhost:8000 en esta computadora."
-Write-Host "Ahora crea los usuarios con: crear-usuario.ps1"
-Write-Host "Y sigue la guía PUBLICAR.md para la dirección rrhh.minoshkas.com."
+Write-Host "Dirección de RRHH: $url" -ForegroundColor Green
+Write-Host "Quedó un acceso directo 'RRHH Minoshkas' en el Escritorio."
+Write-Host "Para entrar desde otro celular o computadora: instala la app Tailscale, entra con la invitación y abre esa dirección."

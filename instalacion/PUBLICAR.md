@@ -1,57 +1,49 @@
-# Publicar RRHH Minoshkas en rrhh.minoshkas.com (sin costo)
+# Instalar RRHH Minoshkas en la computadora de la oficina (sin costo)
 
-La aplicación corre en una computadora de la oficina con Windows. Un túnel gratuito de Cloudflare
-le da la dirección `https://rrhh.minoshkas.com`, con candado de seguridad, para entrar desde cualquier lugar.
-No hay que abrir puertos del router.
+La aplicación corre en una computadora de la oficina con Windows. **Tailscale** crea una red privada
+entre esa computadora y los equipos de Sandra, Julio y Estuardo, con candado HTTPS.
 
-Costo: Q0. Solo se sigue pagando la renovación del dominio en GoDaddy.
+- No toca el dominio minoshkas.com, GoDaddy, el correo de Google ni el router.
+- La aplicación no queda visible en internet: solo entran los equipos autorizados.
+- Costo: Q0 (plan gratuito de Tailscale, hasta 3 usuarios).
 
-## Requisitos
+## Antes de empezar
 
-- Una computadora con Windows 10 u 11 que quede encendida en horario de trabajo.
-- Que no se suspenda: *Configuración > Sistema > Inicio/apagado y suspensión > Suspender: Nunca* (cuando está conectada).
-- Google Drive para escritorio instalado con la cuenta de Minoshkas, para los respaldos diarios.
+- Windows 10 u 11, que quede encendida en horario de trabajo y que no se suspenda:
+  *Configuración > Sistema > Inicio/apagado y suspensión > Suspender: Nunca* (cuando está conectada).
+- Google Drive para escritorio con la cuenta de Minoshkas, para el respaldo diario.
+- La contraseña de esantacruz@minoshkas.com a la mano (solo para identificarse en Tailscale).
 
-## Parte 1: instalar la aplicación (15 minutos)
+## Instalación: un doble clic (unos 20 minutos)
 
-1. En GitHub, abre el repositorio, botón verde **Code > Download ZIP**, y descomprímelo en el Escritorio.
-2. Abre la carpeta `instalacion\windows`, clic derecho sobre `instalar.ps1` > **Ejecutar con PowerShell**.
-   Si Windows pide permiso, acepta. Si dice que la ejecución de scripts está deshabilitada, abre PowerShell como administrador y escribe:
-   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, y vuelve a intentarlo.
-3. Al terminar, ejecuta `crear-usuario.ps1` tres veces: Sandra Marquez, Julio Santa Cruz y Estuardo.
-4. Abre `http://localhost:8000` en el navegador de esa computadora y entra con tu usuario.
+1. Descarga el ZIP de la aplicación y descomprímelo en el Escritorio.
+2. Abre la carpeta y da **doble clic en `INSTALAR.bat`**. Acepta el permiso de administrador.
+3. El instalador hace todo solo: Python, la aplicación, el arranque automático, el respaldo diario y Tailscale.
+   Solo te va a pedir dos cosas en el navegador, que se abre solo:
+   - **Sign in with Google** con esantacruz@minoshkas.com.
+   - **Enable** para permitir HTTPS en tu red privada.
+4. Al final pide los usuarios: escribe nombre y correo de Sandra Marquez, Julio Santa Cruz y Estuardo,
+   y una contraseña de al menos 10 caracteres para cada uno. Enter vacío para terminar.
+5. Queda un acceso directo **RRHH Minoshkas** en el Escritorio. La dirección también queda en
+   `C:\RRHH-Minoshkas\direccion.txt` (algo como `https://nombre-pc.tail1234.ts.net`).
 
-## Parte 2: la dirección rrhh.minoshkas.com (20 minutos)
+## Dar acceso a Sandra y Julio
 
-### 2.1 Pasar el dominio a Cloudflare (gratis)
-
-1. Crea una cuenta en https://dash.cloudflare.com/sign-up con el correo de Minoshkas.
-2. **Add a domain** > escribe `minoshkas.com` > plan **Free**.
-3. Cloudflare copia los registros que ya tiene el dominio. **Antes de seguir**, revisa que aparezcan los registros **MX**
-   (son los del correo @minoshkas.com). Si el dominio tiene correo y no aparecen MX, detente y avísale a Claude.
-4. Cloudflare te muestra dos *nameservers* (por ejemplo `ana.ns.cloudflare.com`).
-5. En GoDaddy: **Mis productos > minoshkas.com > DNS > Nameservers > Cambiar > Usar mis propios nameservers**,
-   pega los dos de Cloudflare y guarda. El cambio tarda entre minutos y unas horas.
-
-### 2.2 Crear el túnel
-
-1. En Cloudflare: **Zero Trust > Networks > Tunnels > Create a tunnel > Cloudflared**. Nombre: `rrhh-minoshkas`.
-2. Elige **Windows** y copia el comando que muestra (`cloudflared.exe service install ...`).
-3. En la computadora de la oficina, abre PowerShell como administrador, instala cloudflared con
-   `winget install --id Cloudflare.cloudflared` y pega el comando copiado.
-4. En **Public Hostname**: subdominio `rrhh`, dominio `minoshkas.com`, tipo `HTTP`, URL `localhost:8000`. Guarda.
-5. Abre `https://rrhh.minoshkas.com` desde tu celular. Debe aparecer la pantalla de entrada.
+1. Entra a https://login.tailscale.com/admin/users > **Invite users** y escribe sus correos.
+2. Cada uno instala la app **Tailscale** (celular: App Store o Play Store; computadora: tailscale.com/download),
+   acepta la invitación y abre la dirección de RRHH. Conviene guardarla como favorito.
 
 ## Después
 
 - **Importar empleados:** menú **Importar**, con la pestaña "empleados" del ERP descargada como CSV.
 - **Patronos:** completa NIT y número patronal de IGSS en **Patronos**.
 - **Respaldos:** cada día a las 7 p. m. se guarda un .zip en `Mi unidad\Respaldos RRHH Minoshkas` (se conservan 30).
-- **Actualizar la aplicación:** descarga el ZIP nuevo de GitHub y vuelve a ejecutar `instalar.ps1`. Los datos no se tocan.
+- **Otro usuario o cambiar contraseña:** doble clic en `CREAR-USUARIO.bat`.
+- **Actualizar la aplicación:** descarga el ZIP nuevo y vuelve a dar doble clic en `INSTALAR.bat`. Los datos no se tocan.
 
 ## Si la computadora se apaga
 
-La aplicación vuelve sola al encenderla. Mientras esté apagada, nadie puede entrar, pero los datos no se pierden.
+La aplicación y Tailscale vuelven solos al encenderla. Mientras esté apagada nadie puede entrar, pero los datos no se pierden.
 
 ## Restaurar un respaldo
 

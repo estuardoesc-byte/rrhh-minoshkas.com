@@ -1,5 +1,5 @@
-# Crea o actualiza un usuario de RRHH Minoshkas.
-# Uso: clic derecho > "Ejecutar con PowerShell". Pide nombre, correo y contraseña.
+﻿# Crea o actualiza un usuario de RRHH Minoshkas.
+# Uso: doble clic en CREAR-USUARIO.bat (carpeta principal). Pide nombre, correo y contraseña.
 $Destino = "C:\RRHH-Minoshkas"
 $nombre = Read-Host "Nombre completo"
 $correo = Read-Host "Correo"
