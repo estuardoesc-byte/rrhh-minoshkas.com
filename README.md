@@ -42,7 +42,11 @@ Luego abre http://localhost:8000.
 
 Pruebas automáticas: `pytest`.
 
-## Publicarlo en la nube (Render)
+## Instalarlo en una computadora de la oficina (sin costo)
+
+Es la opción elegida. Guía completa en [`instalacion/PUBLICAR.md`](instalacion/PUBLICAR.md): instalador para Windows, arranque automático, respaldo diario a Google Drive y dirección `rrhh.minoshkas.com` con un túnel gratuito de Cloudflare.
+
+## Alternativa pagada: Render
 
 El archivo `render.yaml` crea un servicio web con un disco de 5 GB donde viven la base de datos y los documentos. Costo aproximado: US$7 al mes del plan Starter más unos US$1.25 del disco; Render hace una copia diaria del disco.
 
