@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block titulo %}Provisiones · RRHH Minoshkas{% endblock %}
 {% block contenido %}
-<h1>Provisiones de {{ meses[mes - 1] }} {{ anio }}</h1>
+<div class="encabezado">
+  <h1>Provisiones de {{ meses[mes - 1] }} {{ anio }}</h1>
+  <a class="btn secundario" href="/provisiones/excel?anio={{ anio }}&mes={{ mes }}">Descargar Excel</a>
+</div>
 <form method="get" class="filtros">
   <select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select>
   <input type="number" name="anio" value="{{ anio }}" min="2020" max="2100" class="corto">

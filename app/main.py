@@ -875,3 +875,145 @@ def provisiones(request: Request, anio: int = 0, mes: int = 0, db: Session = Dep
             totales = {k: sum((f[k] for f in filas), Decimal("0")) for k in ("salario", "aguinaldo", "bono14", "vacaciones", "indemnizacion", "patronal")}
             grupos.append(dict(empresa=emp, filas=filas, totales=totales))
     return render(request, "provisiones.html", user, grupos=grupos, anio=anio, mes=mes, meses=MESES)
+
+
+# ---------------------------------------------------------------- recibos, Excel y reportes (paso 4)
+
+from fastapi.responses import Response  # noqa: E402
+
+from . import excel  # noqa: E402
+from .letras import monto_en_letras  # noqa: E402
+
+templates.env.filters["letras"] = monto_en_letras
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _descarga_excel(contenido: bytes, nombre: str) -> Response:
+    return Response(contenido, media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
+@app.get("/planillas/{pid}/recibos", response_class=HTMLResponse)
+def planilla_recibos(pid: int, request: Request, linea: int = 0, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    p = _planilla_o_404(db, pid)
+    lineas = [l for l in p.lineas if not linea or l.id == linea]
+    conceptos = {l.id: json.loads(l.detalle) for l in lineas if l.detalle}
+    return render(request, "recibos.html", user, p=p, lineas=lineas, conceptos=conceptos)
+
+
+def _filas_planilla(p: Planilla):
+    quincena = p.tipo in ("quincena1", "quincena2")
+    if quincena:
+        cols = [("Código", "t"), ("Colaborador", "t"), ("DPI", "t"), ("Sucursal", "t"), ("Días", "n"), ("Días no laborados", "n"),
+                ("Salario", "q"), ("Bonificación", "q"), ("Otros ingresos", "q"), ("Total devengado", "q"), ("IGSS", "q"),
+                ("ISR", "q"), ("Otros descuentos", "q"), ("Total descuentos", "q"), ("Líquido", "q"), ("Cuota patronal", "q"), ("Firmado", "t")]
+        filas = [[l.empleado.codigo, l.empleado.nombre_completo, l.empleado.dpi, l.sucursal_nombre, l.dias, l.dias_no_laborados,
+                  l.salario, l.bonificacion, l.otros_ingresos, l.devengado, l.igss, l.isr, l.otros_descuentos, l.descuentos,
+                  l.liquido, l.patronal, "Sí" if l.firmado else "No"] for l in p.lineas]
+        tot = ["", f"Total ({len(p.lineas)})", "", "", "", "", p.total("salario"), p.total("bonificacion"), p.total("otros_ingresos"),
+               sum((l.devengado for l in p.lineas), Decimal(0)), p.total("igss"), p.total("isr"), p.total("otros_descuentos"),
+               sum((l.descuentos for l in p.lineas), Decimal(0)), p.total("liquido"), p.total("patronal"), ""]
+    else:
+        cols = [("Código", "t"), ("Colaborador", "t"), ("DPI", "t"), ("Sucursal", "t"), ("Días", "n"), (p.nombre_tipo, "q"),
+                ("Otros ingresos", "q"), ("Otros descuentos", "q"), ("Líquido", "q"), ("Firmado", "t")]
+        filas = [[l.empleado.codigo, l.empleado.nombre_completo, l.empleado.dpi, l.sucursal_nombre, l.dias, l.salario,
+                  l.otros_ingresos, l.otros_descuentos, l.liquido, "Sí" if l.firmado else "No"] for l in p.lineas]
+        tot = ["", f"Total ({len(p.lineas)})", "", "", "", p.total("salario"), p.total("otros_ingresos"), p.total("otros_descuentos"),
+               p.total("liquido"), ""]
+    return cols, filas, tot
+
+
+@app.get("/planillas/{pid}/excel")
+def planilla_excel(pid: int, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    p = _planilla_o_404(db, pid)
+    cols, filas, tot = _filas_planilla(p)
+    hojas = [dict(nombre=p.nombre_tipo, titulo=f"{p.nombre_tipo} · {p.empresa.razon_social}",
+                  subtitulo=f"NIT {p.empresa.nit or '—'} · Período {fecha_gt(p.desde)} al {fecha_gt(p.hasta)} · Pago {fecha_gt(p.fecha_pago)} · {p.estado}",
+                  columnas=cols, filas=filas, totales=tot)]
+    if p.tipo == "liquidacion":
+        for l in p.lineas:
+            hojas.append(dict(nombre="Detalle", titulo=f"Liquidación de {l.empleado.nombre_completo}", subtitulo=p.notas,
+                              columnas=[("Concepto", "t"), ("Monto", "q")],
+                              filas=[[n, Decimal(v)] for n, v in json.loads(l.detalle or "[]")], totales=["Total", l.liquido]))
+    nombre = f"{p.tipo}-{p.empresa.razon_social[:20]}-{p.desde.isoformat()}.xlsx".replace(" ", "_").replace(",", "")
+    return _descarga_excel(excel.libro(hojas), nombre)
+
+
+def _datos_gerencial(db: Session, anio: int, mes: int):
+    """Costo laboral real del mes: planillas quincenales del mes + provisiones sobre el salario devengado."""
+    desde, hasta = date(anio, mes, 1), date(anio, mes, monthrange(anio, mes)[1])
+    planillas_mes = (
+        db.query(Planilla)
+        .filter(Planilla.tipo.in_(["quincena1", "quincena2"]), Planilla.desde >= desde, Planilla.hasta <= hasta)
+        .all()
+    )
+    claves = ("personas", "salario", "bonificacion", "otros_ingresos", "igss", "isr", "liquido", "patronal", "provisiones", "costo")
+
+    def vacio():
+        return {k: (set() if k == "personas" else Decimal(0)) for k in claves}
+
+    por_sucursal, por_empresa, total = {}, {}, vacio()
+    for p in planillas_mes:
+        for l in p.lineas:
+            prov = sum(calculos.provision_mensual(l.salario + l.otros_ingresos).values(), Decimal(0))
+            costo = l.salario + l.bonificacion + l.otros_ingresos + l.patronal + prov
+            for grupo, clave in ((por_sucursal, l.sucursal_nombre or "Sin sucursal"), (por_empresa, p.empresa.razon_social), (None, None)):
+                g = total if grupo is None else grupo.setdefault(clave, vacio())
+                g["personas"].add(l.empleado_id)
+                for k, v in (("salario", l.salario), ("bonificacion", l.bonificacion), ("otros_ingresos", l.otros_ingresos),
+                             ("igss", l.igss), ("isr", l.isr), ("liquido", l.liquido), ("patronal", l.patronal),
+                             ("provisiones", prov), ("costo", costo)):
+                    g[k] += v
+    for g in [*por_sucursal.values(), *por_empresa.values(), total]:
+        g["personas"] = len(g["personas"])
+    return dict(
+        planillas=planillas_mes,
+        por_sucursal=sorted(por_sucursal.items()),
+        por_empresa=sorted(por_empresa.items()),
+        total=total,
+    )
+
+
+@app.get("/reportes/gerencial", response_class=HTMLResponse)
+def reporte_gerencial(request: Request, anio: int = 0, mes: int = 0, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    hoy = date.today()
+    anio, mes = anio or hoy.year, mes or hoy.month
+    return render(request, "gerencial.html", user, anio=anio, mes=mes, meses=MESES, **_datos_gerencial(db, anio, mes))
+
+
+@app.get("/reportes/gerencial/excel")
+def reporte_gerencial_excel(anio: int, mes: int, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    d = _datos_gerencial(db, anio, mes)
+    cols = [("Grupo", "t"), ("Colaboradores", "n"), ("Salarios", "q"), ("Bonificación", "q"), ("Otros ingresos", "q"),
+            ("Cuota patronal", "q"), ("Provisiones", "q"), ("Costo total", "q"), ("IGSS laboral", "q"), ("ISR", "q"), ("Efectivo pagado", "q")]
+
+    def fila(nombre, g):
+        return [nombre, g["personas"], g["salario"], g["bonificacion"], g["otros_ingresos"], g["patronal"], g["provisiones"],
+                g["costo"], g["igss"], g["isr"], g["liquido"]]
+
+    periodo = f"{MESES[mes - 1].capitalize()} {anio}"
+    hojas = [
+        dict(nombre="Por sucursal", titulo=f"Nómina gerencial por sucursal · {periodo}", subtitulo="Costo laboral del mes con provisiones de prestaciones",
+             columnas=[("Sucursal", "t")] + cols[1:], filas=[fila(n, g) for n, g in d["por_sucursal"]], totales=fila("Total", d["total"])),
+        dict(nombre="Por patrono", titulo=f"Nómina gerencial por patrono · {periodo}", subtitulo="Costo laboral del mes con provisiones de prestaciones",
+             columnas=[("Patrono", "t")] + cols[1:], filas=[fila(n, g) for n, g in d["por_empresa"]], totales=fila("Total", d["total"])),
+    ]
+    return _descarga_excel(excel.libro(hojas), f"nomina-gerencial-{anio}-{mes:02d}.xlsx")
+
+
+@app.get("/provisiones/excel")
+def provisiones_excel(anio: int, mes: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    resp = provisiones(request, anio=anio, mes=mes, db=db, user=user)
+    grupos = resp.context["grupos"]
+    cols = [("Colaborador", "t"), ("Sucursal", "t"), ("Salario del mes", "q"), ("Aguinaldo", "q"), ("Bono 14", "q"),
+            ("Vacaciones", "q"), ("Indemnización", "q"), ("Cuota patronal", "q")]
+    hojas = []
+    for g in grupos:
+        filas = [[f["e"].nombre_completo, f["e"].sucursal.nombre if f["e"].sucursal else "", f["salario"], f["aguinaldo"], f["bono14"],
+                  f["vacaciones"], f["indemnizacion"], f["patronal"]] for f in g["filas"]]
+        t = g["totales"]
+        hojas.append(dict(nombre=g["empresa"].razon_social, titulo=f"Provisiones · {g['empresa'].razon_social}",
+                          subtitulo=f"{MESES[mes - 1].capitalize()} {anio}", columnas=cols, filas=filas,
+                          totales=["Total", "", t["salario"], t["aguinaldo"], t["bono14"], t["vacaciones"], t["indemnizacion"], t["patronal"]]))
+    if not hojas:
+        hojas = [dict(nombre="Provisiones", titulo="Provisiones", subtitulo="Sin colaboradores en el mes", columnas=cols, filas=[])]
+    return _descarga_excel(excel.libro(hojas), f"provisiones-{anio}-{mes:02d}.xlsx")

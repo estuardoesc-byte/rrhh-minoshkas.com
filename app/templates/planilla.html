@@ -8,7 +8,11 @@
     <h1>{{ p.nombre_tipo }} · {{ p.empresa.razon_social }}</h1>
     <p class="sutil">Período {{ p.desde|fecha }} al {{ p.hasta|fecha }} · Pago {{ p.fecha_pago|fecha }} · <span class="etiqueta {{ 'verde' if p.estado == 'cerrada' else 'ambar' }}">{{ p.estado }}</span>{% if p.notas %} · {{ p.notas }}{% endif %}</p>
   </div>
-  <a class="btn secundario" href="/planillas">Volver</a>
+  <div class="acciones-fila">
+    <a class="btn" href="/planillas/{{ p.id }}/recibos" target="_blank" rel="noopener">Recibos (imprimir o PDF)</a>
+    <a class="btn secundario" href="/planillas/{{ p.id }}/excel">Excel</a>
+    <a class="btn secundario" href="/planillas">Volver</a>
+  </div>
 </div>
 {% if error %}<p class="alerta">{{ error }}</p>{% endif %}
 
@@ -30,7 +34,7 @@
   <tbody>
   {% for l in p.lineas %}
     <tr>
-      <td><a href="/empleados/{{ l.empleado_id }}">{{ l.empleado.nombre_completo }}</a></td>
+      <td><a href="/empleados/{{ l.empleado_id }}">{{ l.empleado.nombre_completo }}</a> <a class="sutil" href="/planillas/{{ p.id }}/recibos?linea={{ l.id }}" target="_blank" rel="noopener">recibo</a></td>
       <td>{{ l.sucursal_nombre }}</td>
       {% if quincena %}<td class="num">{% if editable %}<input class="mini-num" type="number" min="0" max="16" name="dnl_{{ l.id }}" value="{{ l.dias_no_laborados }}">{% else %}{{ l.dias_no_laborados }}{% endif %}</td>{% endif %}
       <td class="num">{{ l.dias }}</td>

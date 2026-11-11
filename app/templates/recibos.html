@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recibos · {{ p.nombre_tipo }} · {{ p.empresa.razon_social }}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #222; margin: 0; background: #f2f0ef; font-size: 12.5px; }
+  .barra { padding: 12px 16px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .barra button, .barra a { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid #a8326e; background: #a8326e; color: #fff; text-decoration: none; cursor: pointer; }
+  .barra a { background: #fff; color: #7f2453; }
+  .hoja { background: #fff; width: 210mm; min-height: 140mm; margin: 12px auto; padding: 10mm 14mm; border: 1px solid #ddd; page-break-inside: avoid; }
+  h1 { font-size: 15px; margin: 0; }
+  .cab { display: flex; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 6px; margin-bottom: 8px; }
+  .cab p { margin: 2px 0; }
+  .datos { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; margin-bottom: 8px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 3px 4px; border-bottom: 1px solid #e3e3e3; text-align: left; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.t td { font-weight: 700; border-top: 1px solid #222; }
+  .liquido { margin-top: 8px; padding: 6px 8px; background: #f6f1f3; display: flex; justify-content: space-between; font-size: 14px; }
+  .letras { margin: 4px 0 0; font-style: italic; }
+  .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 34px; text-align: center; }
+  .firmas div { border-top: 1px solid #222; padding-top: 4px; }
+  .nota { color: #666; font-size: 11px; margin-top: 10px; }
+  @media print {
+    @page { size: letter; margin: 8mm; }
+    body { background: #fff; }
+    .barra { display: none; }
+    .hoja { border: 0; margin: 0 auto; width: auto; min-height: 0; padding: 4mm 6mm; }
+    .hoja:nth-of-type(even) { page-break-after: always; }
+    .hoja + .hoja { border-top: 1px dashed #999; }
+  }
+</style>
+</head>
+<body>
+<div class="barra">
+  <button onclick="window.print()">Imprimir o guardar como PDF</button>
+  <a href="/planillas/{{ p.id }}">Volver a la planilla</a>
+  <span>{{ lineas|length }} recibo(s). Caben dos por hoja carta.</span>
+</div>
+{% for l in lineas %}
+<section class="hoja">
+  <div class="cab">
+    <div>
+      <h1>{{ p.empresa.razon_social }}</h1>
+      <p>{{ p.empresa.nombre_comercial }}{% if p.empresa.nit %} · NIT {{ p.empresa.nit }}{% endif %}{% if p.empresa.numero_patronal_igss %} · Patronal IGSS {{ p.empresa.numero_patronal_igss }}{% endif %}</p>
+    </div>
+    <div style="text-align:right">
+      <h1>Recibo de pago · {{ p.nombre_tipo }}</h1>
+      <p>Período {{ p.desde|fecha }} al {{ p.hasta|fecha }}</p>
+    </div>
+  </div>
+  <div class="datos">
+    <div><strong>Colaborador:</strong> {{ l.empleado.nombre_completo }}</div>
+    <div><strong>Código:</strong> {{ l.empleado.codigo }}</div>
+    <div><strong>DPI:</strong> {{ l.empleado.dpi or '—' }}</div>
+    <div><strong>Afiliación IGSS:</strong> {{ l.empleado.afiliacion_igss or '—' }}</div>
+    <div><strong>Puesto:</strong> {{ l.empleado.puesto or '—' }}</div>
+    <div><strong>Sucursal:</strong> {{ l.sucursal_nombre or '—' }}</div>
+  </div>
+
+  {% if conceptos.get(l.id) %}
+  <table>
+    <thead><tr><th>Concepto</th><th class="n">Monto</th></tr></thead>
+    <tbody>{% for nombre, valor in conceptos[l.id] %}<tr><td>{{ nombre }}</td><td class="n">{{ valor|q }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <div class="cols">
+    <table>
+      <thead><tr><th>Ingresos</th><th class="n">Monto</th></tr></thead>
+      <tbody>
+        {% if p.tipo in ('quincena1', 'quincena2') %}
+        <tr><td>Salario ({{ l.dias }} días{% if l.dias_no_laborados %}, {{ l.dias_no_laborados }} no laborados{% endif %})</td><td class="n">{{ l.salario|q }}</td></tr>
+        <tr><td>Bonificación incentivo (Decreto 37-2001)</td><td class="n">{{ l.bonificacion|q }}</td></tr>
+        {% else %}
+        <tr><td>{{ p.nombre_tipo }} ({{ l.dias }} días)</td><td class="n">{{ l.salario|q }}</td></tr>
+        {% endif %}
+        {% if l.otros_ingresos %}<tr><td>Otros ingresos</td><td class="n">{{ l.otros_ingresos|q }}</td></tr>{% endif %}
+        <tr class="t"><td>Total ingresos</td><td class="n">{{ l.devengado|q }}</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <thead><tr><th>Descuentos</th><th class="n">Monto</th></tr></thead>
+      <tbody>
+        {% if p.tipo in ('quincena1', 'quincena2') %}
+        <tr><td>IGSS laboral</td><td class="n">{{ l.igss|q }}</td></tr>
+        {% if l.isr %}<tr><td>ISR</td><td class="n">{{ l.isr|q }}</td></tr>{% endif %}
+        {% endif %}
+        {% if l.otros_descuentos %}<tr><td>Otros descuentos</td><td class="n">{{ l.otros_descuentos|q }}</td></tr>{% endif %}
+        <tr class="t"><td>Total descuentos</td><td class="n">{{ l.descuentos|q }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="liquido"><strong>Líquido a recibir</strong><strong>{{ l.liquido|q }}</strong></div>
+  <p class="letras">{{ l.liquido|letras }}</p>
+  <p>Recibí en efectivo la cantidad indicada, a mi entera satisfacción, en la fecha: ____ / ____ / ________</p>
+  <div class="firmas">
+    <div>Firma del colaborador<br>{{ l.empleado.nombre_completo }}</div>
+    <div>Entregado por</div>
+  </div>
+  {% if p.notas %}<p class="nota">{{ p.notas }}</p>{% endif %}
+</section>
+{% endfor %}
+</body>
+</html>

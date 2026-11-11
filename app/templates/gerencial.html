@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Nómina gerencial · RRHH Minoshkas{% endblock %}
+{% macro tabla(titulo, etiqueta, grupos, total) -%}
+<section class="tarjeta tabla-scroll">
+  <h2>{{ titulo }}</h2>
+  <table>
+    <thead><tr><th>{{ etiqueta }}</th><th class="num">Colaboradores</th><th class="num">Salarios</th><th class="num">Bonificación</th><th class="num">Otros ingresos</th><th class="num">Cuota patronal</th><th class="num">Provisiones</th><th class="num">Costo total</th><th class="num">Efectivo pagado</th></tr></thead>
+    <tbody>
+    {% for nombre, g in grupos %}
+      <tr><td>{{ nombre }}</td><td class="num">{{ g.personas }}</td><td class="num">{{ g.salario|q }}</td><td class="num">{{ g.bonificacion|q }}</td><td class="num">{{ g.otros_ingresos|q }}</td><td class="num">{{ g.patronal|q }}</td><td class="num">{{ g.provisiones|q }}</td><td class="num"><strong>{{ g.costo|q }}</strong></td><td class="num">{{ g.liquido|q }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Total</td><td class="num">{{ total.personas }}</td><td class="num">{{ total.salario|q }}</td><td class="num">{{ total.bonificacion|q }}</td><td class="num">{{ total.otros_ingresos|q }}</td><td class="num">{{ total.patronal|q }}</td><td class="num">{{ total.provisiones|q }}</td><td class="num">{{ total.costo|q }}</td><td class="num">{{ total.liquido|q }}</td></tr></tfoot>
+  </table>
+</section>
+{%- endmacro %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Nómina gerencial · {{ meses[mes - 1]|capitalize }} {{ anio }}</h1>
+  <a class="btn secundario" href="/reportes/gerencial/excel?anio={{ anio }}&mes={{ mes }}">Descargar Excel</a>
+</div>
+<form method="get" class="filtros">
+  <select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select>
+  <input type="number" name="anio" value="{{ anio }}" min="2020" max="2100" class="corto">
+  <button class="btn secundario">Ver</button>
+</form>
+{% if not planillas %}
+<p class="sutil">No hay planillas quincenales generadas en {{ meses[mes - 1] }} {{ anio }}. Genera la primera y segunda quincena en <a href="/planillas">Planillas</a>.</p>
+{% else %}
+<div class="kpis">
+  <div class="kpi"><span>Costo laboral total del mes</span><strong>{{ total.costo|q }}</strong></div>
+  <div class="kpi"><span>Efectivo pagado</span><strong>{{ total.liquido|q }}</strong></div>
+  <div class="kpi"><span>Cuota patronal</span><strong>{{ total.patronal|q }}</strong></div>
+  <div class="kpi"><span>Provisiones del mes</span><strong>{{ total.provisiones|q }}</strong></div>
+</div>
+{{ tabla("Por sucursal", "Sucursal", por_sucursal, total) }}
+{{ tabla("Por patrono", "Patrono", por_empresa, total) }}
+<p class="sutil">Costo total = salarios + bonificación + otros ingresos + cuota patronal (IGSS, IRTRA, INTECAP) + provisiones de aguinaldo, bono 14, vacaciones e indemnización. Basado en {{ planillas|length }} planilla(s) del mes.</p>
+{% endif %}
+{% endblock %}
