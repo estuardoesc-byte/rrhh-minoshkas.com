@@ -207,3 +207,24 @@ def test_liquidacion_registra_y_retira(client):
         e = db.get(Empleado, eid)
         assert e.estado == "retirado" and e.fecha_baja == date(2025, 12, 31)
     assert "Indemnización" in client.get(r.headers["location"]).text
+
+
+def test_desactivar_y_eliminar(client):
+    from app.db import SessionLocal
+    from app.models import Empleado, ErpExcluido
+    login(client)
+    r = _nuevo(client, dpi="2222 33333 0101", nombres="Vanessa")
+    eid = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        db.get(Empleado, eid).erp_id = "c-dup"
+        db.commit()
+    ficha = client.get(f"/empleados/{eid}").text
+    assert "Desactivar" in ficha and "Eliminar" in ficha
+    client.post(f"/empleados/{eid}/estado", data={"csrf": csrf(client, f"/empleados/{eid}")})
+    assert "Vanessa" not in client.get("/empleados").text
+    assert "Activar" in client.get(f"/empleados/{eid}").text
+    r = client.post(f"/empleados/{eid}/eliminar", data={"csrf": csrf(client, f"/empleados/{eid}")}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/empleados"
+    with SessionLocal() as db:
+        assert db.get(Empleado, eid) is None
+        assert db.get(ErpExcluido, "c-dup") is not None

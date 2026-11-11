@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
 
-ESTADOS_EMPLEADO = ["activo", "suspendido", "retirado"]
+ESTADOS_EMPLEADO = ["activo", "suspendido", "retirado", "inactivo"]
 TIPOS_CONTRATO = ["indefinido", "plazo fijo", "obra determinada"]
 JORNADAS = ["diurna", "mixta", "nocturna"]
 ESTADOS_CIVILES = ["soltero(a)", "casado(a)", "unido(a)", "divorciado(a)", "viudo(a)"]
@@ -269,3 +269,12 @@ class PlanillaLinea(Base):
     @property
     def descuentos(self) -> Decimal:
         return (self.igss or 0) + (self.isr or 0) + (self.otros_descuentos or 0)
+
+
+class ErpExcluido(Base):
+    """Colaboradores del ERP que se eliminaron aquí: una nueva importación no los vuelve a crear."""
+    __tablename__ = "erp_excluidos"
+    erp_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200), default="")
+    eliminado_por: Mapped[str] = mapped_column(String(120), default="")
+    fecha: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

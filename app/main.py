@@ -27,6 +27,7 @@ from .models import (
     TIPOS_DOCUMENTO,
     Documento,
     Empleado,
+    ErpExcluido,
     Empresa,
     HistorialEmpleado,
     Parametro,
@@ -362,10 +363,10 @@ def _empleado_o_404(db: Session, eid: int) -> Empleado:
 
 
 @app.get("/empleados/{eid}", response_class=HTMLResponse)
-def empleado_ficha(eid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+def empleado_ficha(eid: int, request: Request, aviso: str = "", db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
     e = _empleado_o_404(db, eid)
     return render(request, "empleado_ficha.html", user, e=e, tipos=TIPOS_DOCUMENTO, nombres_doc=NOMBRES_DOCUMENTO,
-                  max_mb=config.MAX_UPLOAD_MB)
+                  max_mb=config.MAX_UPLOAD_MB, aviso=aviso)
 
 
 @app.get("/empleados/{eid}/editar", response_class=HTMLResponse)
@@ -399,6 +400,36 @@ async def empleado_editar(eid: int, request: Request, db: Session = Depends(get_
         e.codigo = f"MK-{e.id:04d}"
     db.commit()
     return RedirectResponse(f"/empleados/{e.id}", status_code=303)
+
+
+@app.post("/empleados/{eid}/estado")
+async def empleado_activar(eid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    """Desactiva (deja de aparecer en listas y planillas, conserva todo) o vuelve a activar."""
+    await form_con_csrf(request)
+    e = _empleado_o_404(db, eid)
+    nuevo = "activo" if e.estado == "inactivo" else "inactivo"
+    db.add(HistorialEmpleado(empleado_id=e.id, campo="Estado", valor_anterior=e.estado, valor_nuevo=nuevo, usuario=user.nombre))
+    e.estado = nuevo
+    db.commit()
+    return RedirectResponse(f"/empleados/{e.id}", status_code=303)
+
+
+@app.post("/empleados/{eid}/eliminar")
+async def empleado_eliminar(eid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    """Borra un registro equivocado o duplicado. Si ya tiene planillas, solo se puede desactivar."""
+    await form_con_csrf(request)
+    e = _empleado_o_404(db, eid)
+    if db.query(PlanillaLinea).filter(PlanillaLinea.empleado_id == e.id).first():
+        return RedirectResponse(f"/empleados/{e.id}?aviso=con_planillas", status_code=303)
+    for d in list(e.documentos):
+        _borrar_archivo(d)
+        db.delete(d)
+    db.query(HistorialEmpleado).filter(HistorialEmpleado.empleado_id == e.id).delete()
+    if e.erp_id and not db.get(ErpExcluido, e.erp_id):
+        db.add(ErpExcluido(erp_id=e.erp_id, nombre=e.nombre_completo, eliminado_por=user.nombre))
+    db.delete(e)
+    db.commit()
+    return RedirectResponse("/empleados", status_code=303)
 
 
 # ---------------------------------------------------------------- documentos
@@ -634,7 +665,8 @@ def empleados_del_periodo(db: Session, empresa_id: int, desde: date, hasta: date
     lista = db.query(Empleado).filter(Empleado.empresa_id == empresa_id).order_by(Empleado.nombres).all()
     return [
         e for e in lista
-        if (e.fecha_ingreso is None or e.fecha_ingreso <= hasta)
+        if e.estado != "inactivo"
+        and (e.fecha_ingreso is None or e.fecha_ingreso <= hasta)
         and (e.estado != "retirado" or (e.fecha_baja and e.fecha_baja >= desde))
     ]
 

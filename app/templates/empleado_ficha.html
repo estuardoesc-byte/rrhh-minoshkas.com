@@ -14,8 +14,19 @@
   <div class="acciones-fila">
     <a class="btn" href="/empleados/{{ e.id }}/editar">Editar ficha</a>
     {% if e.estado != 'retirado' %}<a class="btn secundario" href="/empleados/{{ e.id }}/liquidacion">Liquidar</a>{% endif %}
+    <form method="post" action="/empleados/{{ e.id }}/estado">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn secundario">{{ 'Activar' if e.estado == 'inactivo' else 'Desactivar' }}</button>
+    </form>
+    <form method="post" action="/empleados/{{ e.id }}/eliminar" onsubmit='return confirm({{ ("¿Eliminar a " ~ e.nombre_completo ~ " y todos sus documentos? No se puede deshacer.")|tojson }})'>
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn-link peligro">Eliminar</button>
+    </form>
   </div>
 </div>
+
+{% if aviso == 'con_planillas' %}
+<p class="alerta">No se puede eliminar porque ya aparece en planillas pagadas. Usa <strong>Desactivar</strong>: deja de salir en listas y planillas, pero se conserva su historial.</p>
+{% endif %}
 
 {% if e.tarjeta_salud_vence and e.tarjeta_salud_vence < hoy %}
 <p class="alerta">La tarjeta de salud venció el {{ e.tarjeta_salud_vence|fecha }}.</p>
