@@ -129,3 +129,49 @@ def test_paginas_principales(client):
     login(client)
     for url in ["/", "/empleados", "/empresas", "/sucursales", "/parametros", "/empleados/nuevo"]:
         assert client.get(url).status_code == 200, url
+
+
+CSV_ERP = (
+    "id,empresaId,nombre,dpi,nit,igss,tarjetaSalud,tarjetaSaludVence,puesto,sucursalId,colaboradoraId,fechaIngreso,"
+    "vacPrevias,salarioBase,bonificacion,cuentaBanco,telefono,direccion,emergencia,estado,fechaBaja,motivoBaja,notas,updatedAt,deleted,_srv\n"
+    "e-1,e-x,Maria  Ejemplo Uno,1111 22222 0303,,,,2027-01-31,Estilista,s-x,k-1,2026-10-22,3,\"3816,9\",250,,5555,Zona 1,,activo,,,nota uno,1,,1\n"
+    "e-2,e-x,Rosa Ejemplo Dos,123,,,,,Recepcionista,s-zz,k-2,2025-01-15,0,4000,250,,,,,activo,,,,1,,1\n"
+    "e-3,e-x,Borrada Ejemplo,,,,,,,s-x,,,,,,,,,,activo,,,,1,TRUE,1\n"
+    "e-4,e-x,Copia DPI,1111222220303,,,,,,s-x,,,,,,,,,,activo,,,,1,,1\n"
+)
+
+
+def test_importar_desde_erp(client):
+    login(client)
+    with SessionLocal() as db:
+        db.add(Empresa(razon_social="Patrono ERP", erp_id="e-x"))
+        db.add(Sucursal(nombre="Sucursal ERP", erp_id="s-x"))
+        db.commit()
+    token = csrf(client, "/importar")
+    r = client.post("/importar", data={"csrf": token}, files={"archivo": ("empleados.csv", CSV_ERP.encode(), "text/csv")})
+    assert r.status_code == 200
+    assert "Nuevos" in r.text
+    with SessionLocal() as db:
+        uno = db.query(Empleado).filter_by(erp_id="e-1").one()
+        assert uno.nombres == "Maria Ejemplo Uno"
+        assert uno.dpi == "1111222220303"
+        assert str(uno.salario_base) == "3816.90"
+        assert uno.vacaciones_previas == 3
+        assert uno.empresa.erp_id == "e-x" and uno.sucursal.erp_id == "s-x"
+        dos = db.query(Empleado).filter_by(erp_id="e-2").one()
+        assert dos.dpi == "" and "123" in dos.notas and dos.sucursal_id is None
+        assert db.query(Empleado).filter_by(erp_id="e-3").count() == 0
+        assert db.query(Empleado).filter_by(erp_id="e-4").count() == 0
+    assert "no tiene 13 dígitos" in r.text and "ya pertenece" in r.text and "no encontrada" in r.text
+
+    # Reimportar no duplica ni sobrescribe
+    r = client.post("/importar", data={"csrf": token}, files={"archivo": ("empleados.csv", CSV_ERP.encode(), "text/csv")})
+    with SessionLocal() as db:
+        assert db.query(Empleado).filter_by(erp_id="e-1").count() == 1
+
+
+def test_importar_archivo_equivocado(client):
+    login(client)
+    token = csrf(client, "/importar")
+    r = client.post("/importar", data={"csrf": token}, files={"archivo": ("x.csv", b"a,b\n1,2\n", "text/csv")})
+    assert "no parece ser la hoja" in r.text

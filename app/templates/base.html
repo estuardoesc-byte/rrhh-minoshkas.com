@@ -15,6 +15,7 @@
     <a href="/empleados" class="{{ 'activo' if request.url.path.startswith('/empleados') }}">Colaboradores</a>
     <a href="/empresas" class="{{ 'activo' if request.url.path.startswith('/empresas') }}">Patronos</a>
     <a href="/sucursales" class="{{ 'activo' if request.url.path.startswith('/sucursales') }}">Sucursales</a>
+    <a href="/importar" class="{{ 'activo' if request.url.path.startswith('/importar') }}">Importar</a>
     <a href="/parametros" class="{{ 'activo' if request.url.path.startswith('/parametros') }}">Parámetros</a>
   </nav>
   <form method="post" action="/logout" class="salir">

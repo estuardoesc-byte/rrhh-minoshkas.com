@@ -564,3 +564,34 @@ async def parametros_guardar(request: Request, db: Session = Depends(get_db), us
         p.valor = v
     db.commit()
     return RedirectResponse("/parametros", status_code=303)
+
+
+# ---------------------------------------------------------------- importación desde el ERP
+
+
+@app.get("/importar", response_class=HTMLResponse)
+def importar_form(request: Request, user: Usuario = Depends(requiere_usuario)):
+    return render(request, "importar.html", user, resultado=None, error=None)
+
+
+@app.post("/importar", response_class=HTMLResponse)
+async def importar(
+    request: Request,
+    csrf: str = Form(""),
+    actualizar: str = Form(""),
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(requiere_usuario),
+):
+    verificar_csrf(request, csrf)
+    from .importar import importar_csv
+
+    contenido = await archivo.read(5 * 1024 * 1024 + 1)
+    if len(contenido) > 5 * 1024 * 1024:
+        return render(request, "importar.html", user, resultado=None, error="El archivo supera 5 MB.")
+    try:
+        resultado = importar_csv(db, contenido, user.nombre, actualizar=actualizar == "1")
+    except ValueError as exc:
+        db.rollback()
+        return render(request, "importar.html", user, resultado=None, error=str(exc))
+    return render(request, "importar.html", user, resultado=resultado, error=None)

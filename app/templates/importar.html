@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Importar del ERP · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>Importar colaboradores del ERP</h1>
+
+<section class="tarjeta">
+  <h2>Cómo hacerlo</h2>
+  <ol>
+    <li>Abre la hoja de Google <strong>Minoshkas_ERP_DB</strong> y selecciona la pestaña <strong>empleados</strong>.</li>
+    <li>Ve a <strong>Archivo &gt; Descargar &gt; Valores separados por comas (.csv)</strong>.</li>
+    <li>Sube aquí el archivo descargado.</li>
+  </ol>
+  <p class="sutil">Primero deben existir los patronos y las sucursales. Los colaboradores ya importados no se modifican, salvo que marques la casilla. Los marcados como eliminados en el ERP no se importan.</p>
+  {% if error %}<p class="alerta">{{ error }}</p>{% endif %}
+  <form method="post" action="/importar" enctype="multipart/form-data" class="subir">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="file" name="archivo" accept=".csv,text/csv" required>
+    <label class="check"><input type="checkbox" name="actualizar" value="1"> Actualizar los que ya existen con los datos del ERP</label>
+    <button class="btn">Importar</button>
+  </form>
+</section>
+
+{% if resultado %}
+<section class="tarjeta">
+  <h2>Resultado</h2>
+  <div class="kpis">
+    <div class="kpi"><span>Nuevos</span><strong>{{ resultado.creados }}</strong></div>
+    <div class="kpi"><span>Actualizados</span><strong>{{ resultado.actualizados }}</strong></div>
+    <div class="kpi"><span>Omitidos</span><strong>{{ resultado.omitidos }}</strong></div>
+  </div>
+  {% if resultado.avisos %}
+  <h3>Revisar</h3>
+  <ul>{% for a in resultado.avisos %}<li>{{ a }}</li>{% endfor %}</ul>
+  {% endif %}
+  <p>El ERP guarda el nombre completo en un solo campo; revisa en cada ficha que nombres y apellidos queden bien separados. <a href="/empleados">Ver colaboradores</a></p>
+</section>
+{% endif %}
+{% endblock %}

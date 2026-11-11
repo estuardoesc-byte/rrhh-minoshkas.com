@@ -14,6 +14,7 @@ El diseño y las reglas de cálculo están en el documento *Sistema de RRHH Mino
 - Historial de cambios de salario, puesto, sucursal, patrono y estado.
 - Inicio con alertas: tarjetas de salud vencidas o por vencer, contratos por vencer, salarios bajo el mínimo, colaboradores sin patrono y expedientes incompletos.
 - Parámetros legales editables: salario mínimo, bonificación incentivo y porcentajes de IGSS, IRTRA e INTECAP.
+- Importación de colaboradores desde la hoja "empleados" del ERP (menú Importar, archivo CSV descargado de Google Sheets).
 
 Pendiente para los pasos 3 y 4: nóminas quincenales y mensuales, bono 14, aguinaldo, provisiones, liquidaciones, recibos y reportes.
 
@@ -25,7 +26,7 @@ Requiere Python 3.12 o más reciente.
 python -m venv .venv
 source .venv/bin/activate          # En Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
-python -m scripts.cargar_base      # patronos y sucursales
+python -m scripts.cargar_base      # patronos y sucursales (necesarios antes de importar del ERP)
 python -m scripts.crear_usuario "Estuardo Santa Cruz" estuardo@minoshkas.com
 uvicorn app.main:app --reload
 ```
@@ -47,7 +48,8 @@ El archivo `render.yaml` crea un servicio web con un disco de 5 GB donde viven l
    python -m scripts.crear_usuario "Julio Santa Cruz" <correo de Julio>
    python -m scripts.crear_usuario "Estuardo Santa Cruz" <tu correo>
    ```
-4. Entra a la dirección que da Render (termina en `.onrender.com`) y revisa en **Parámetros** que el salario mínimo (Q3,816.90 para 2026) esté vigente.
+4. Entra a la dirección que da Render (termina en `.onrender.com`) y, en **Importar**, sube la hoja "empleados" del ERP descargada como CSV.
+5. Entra a la dirección que da Render (termina en `.onrender.com`) y revisa en **Parámetros** que el salario mínimo (Q3,816.90 para 2026) esté vigente.
 
 ## Versión anterior en el navegador
 
