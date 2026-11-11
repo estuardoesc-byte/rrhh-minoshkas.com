@@ -30,8 +30,12 @@ entre esa computadora y los equipos de Sandra, Julio y Estuardo, con candado HTT
 ## Dar acceso a Sandra y Julio
 
 1. Entra a https://login.tailscale.com/admin/users > **Invite users** y escribe sus correos.
-2. Cada uno instala la app **Tailscale** (celular: App Store o Play Store; computadora: tailscale.com/download),
-   acepta la invitación y abre la dirección de RRHH. Conviene guardarla como favorito.
+2. **Computadora con Windows:** el instalador dejó en el Escritorio de la PC de la oficina la carpeta
+   **RRHH - instalador para otras computadoras**. Cópiala a la otra computadora (USB o Google Drive)
+   y da doble clic en **CONECTAR.bat**. Instala Tailscale, abre el navegador para entrar con el correo invitado
+   y deja el acceso directo **RRHH Minoshkas** en el Escritorio.
+3. **Celular:** instala la app **Tailscale** (App Store o Play Store), entra con el correo invitado
+   y abre la dirección de RRHH. Conviene guardarla como favorito.
 
 ## Después
 
@@ -39,7 +43,7 @@ entre esa computadora y los equipos de Sandra, Julio y Estuardo, con candado HTT
 - **Patronos:** completa NIT y número patronal de IGSS en **Patronos**.
 - **Respaldos:** cada día a las 7 p. m. se guarda un .zip en `Mi unidad\Respaldos RRHH Minoshkas` (se conservan 30).
 - **Otro usuario o cambiar contraseña:** doble clic en `CREAR-USUARIO.bat`.
-- **Actualizar la aplicación:** descarga el ZIP nuevo y vuelve a dar doble clic en `INSTALAR.bat`. Los datos no se tocan.
+- **Actualizar la aplicación:** descarga el ZIP nuevo y vuelve a dar doble clic en `INSTALAR.bat`. Detiene la versión anterior, pone la nueva y los datos no se tocan.
 
 ## Si la computadora se apaga
 

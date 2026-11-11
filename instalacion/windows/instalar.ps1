@@ -19,6 +19,15 @@ if (-not $py) {
 }
 
 # 2. Copiar la aplicación (sin tocar la carpeta de datos)
+#    Si ya estaba instalada, primero se detiene para que arranque con la versión nueva.
+if (Get-ScheduledTask -TaskName "RRHH Minoshkas" -ErrorAction SilentlyContinue) {
+    Paso "Deteniendo la versión anterior"
+    Stop-ScheduledTask -TaskName "RRHH Minoshkas" -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*uvicorn*app.main*" } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 2
+}
 Paso "Copiando la aplicación a $Destino"
 New-Item -ItemType Directory -Force -Path $Destino, $Datos, "$Datos\documentos" | Out-Null
 foreach ($carpeta in "app", "scripts", "instalacion") {
@@ -121,6 +130,13 @@ Set-Content -Encoding UTF8 "$Destino\direccion.txt" $url
 URL=$url
 "@ | Set-Content -Encoding ASCII "$env:PUBLIC\Desktop\RRHH Minoshkas.url"
 
+# Instalador para las otras computadoras, con la dirección ya puesta.
+$paraOtras = "$env:PUBLIC\Desktop\RRHH - instalador para otras computadoras"
+New-Item -ItemType Directory -Force -Path $paraOtras | Out-Null
+Copy-Item "$Repo\instalacion\windows\conectar.ps1" $paraOtras -Force
+Copy-Item "$Repo\CONECTAR.bat" $paraOtras -Force
+Set-Content -Encoding UTF8 "$paraOtras\direccion.txt" $url
+
 # 9. Usuarios administradores
 Start-Sleep -Seconds 3
 Paso "Usuarios de la aplicación"
@@ -137,4 +153,5 @@ Pop-Location
 Paso "Listo"
 Write-Host "Dirección de RRHH: $url" -ForegroundColor Green
 Write-Host "Quedó un acceso directo 'RRHH Minoshkas' en el Escritorio."
-Write-Host "Para entrar desde otro celular o computadora: instala la app Tailscale, entra con la invitación y abre esa dirección."
+Write-Host "Para otras computadoras: copia la carpeta 'RRHH - instalador para otras computadoras' del Escritorio"
+Write-Host "(por USB o Google Drive) y en la otra computadora da doble clic en CONECTAR.bat."
