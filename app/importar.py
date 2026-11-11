@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 from sqlalchemy.orm import Session
 
-from .models import Empleado, Empresa, HistorialEmpleado, Sucursal
+from .models import ErpExcluido, Empleado, Empresa, HistorialEmpleado, Sucursal
 
 COLUMNAS_REQUERIDAS = {"id", "nombre"}
 
@@ -91,6 +91,9 @@ def importar_csv(db: Session, contenido: bytes, usuario: str, actualizar: bool =
             res.omitidos += 1
             continue
 
+        if db.get(ErpExcluido, erp_id):
+            res.omitidos += 1
+            continue
         existente = db.query(Empleado).filter(Empleado.erp_id == erp_id).first()
         if existente and not actualizar:
             res.omitidos += 1
@@ -128,7 +131,10 @@ def importar_csv(db: Session, contenido: bytes, usuario: str, actualizar: bool =
         e.direccion = _texto(fila, "direccion") or e.direccion or ""
         e.emergencia_nombre = _texto(fila, "emergencia") or e.emergencia_nombre or ""
         estado = _texto(fila, "estado").lower()
-        e.estado = estado if estado in {"activo", "suspendido", "retirado"} else ("retirado" if estado in {"baja", "inactivo"} else "activo")
+        if existente and existente.estado == "inactivo":
+            pass  # desactivado a mano aquí: la importación no lo reactiva
+        else:
+            e.estado = estado if estado in {"activo", "suspendido", "retirado"} else ("retirado" if estado in {"baja", "inactivo"} else "activo")
         e.fecha_baja = _fecha(_texto(fila, "fechaBaja")) or e.fecha_baja
         e.motivo_baja = _texto(fila, "motivoBaja") or e.motivo_baja or ""
         notas = [x for x in [_texto(fila, "notas"), f"DPI en el ERP: {dpi_nota}" if dpi_nota else ""] if x]

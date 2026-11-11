@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block titulo %}{{ p.nombre_tipo }} · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+{% set editable = p.estado != 'cerrada' %}
+{% set quincena = p.tipo in ('quincena1', 'quincena2') %}
+<div class="encabezado">
+  <div>
+    <h1>{{ p.nombre_tipo }} · {{ p.empresa.razon_social }}</h1>
+    <p class="sutil">Período {{ p.desde|fecha }} al {{ p.hasta|fecha }} · Pago {{ p.fecha_pago|fecha }} · <span class="etiqueta {{ 'verde' if p.estado == 'cerrada' else 'ambar' }}">{{ p.estado }}</span>{% if p.notas %} · {{ p.notas }}{% endif %}</p>
+  </div>
+  <div class="acciones-fila">
+    <a class="btn" href="/planillas/{{ p.id }}/recibos" target="_blank" rel="noopener">Recibos (imprimir o PDF)</a>
+    <a class="btn secundario" href="/planillas/{{ p.id }}/excel">Excel</a>
+    <a class="btn secundario" href="/planillas">Volver</a>
+  </div>
+</div>
+{% if error %}<p class="alerta">{{ error }}</p>{% endif %}
+
+<form method="post" action="/planillas/{{ p.id }}/guardar">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="tabla-scroll tarjeta">
+<table>
+  <thead><tr>
+    <th>Colaborador</th><th>Sucursal</th>
+    {% if quincena %}<th class="num">Días no laborados</th>{% endif %}
+    <th class="num">Días</th>
+    <th class="num">{{ 'Salario' if quincena else ('Total' if p.tipo == 'liquidacion' else p.nombre_tipo) }}</th>
+    {% if quincena %}<th class="num">Bonificación</th>{% endif %}
+    {% if p.tipo != 'liquidacion' %}<th class="num">Otros ingresos</th>{% endif %}
+    {% if quincena %}<th class="num">IGSS</th><th class="num">ISR</th>{% endif %}
+    {% if p.tipo != 'liquidacion' %}<th class="num">Otros descuentos</th>{% endif %}
+    <th class="num">Líquido</th><th>Firmado</th>
+  </tr></thead>
+  <tbody>
+  {% for l in p.lineas %}
+    <tr>
+      <td><a href="/empleados/{{ l.empleado_id }}">{{ l.empleado.nombre_completo }}</a> <a class="sutil" href="/planillas/{{ p.id }}/recibos?linea={{ l.id }}" target="_blank" rel="noopener">recibo</a></td>
+      <td>{{ l.sucursal_nombre }}</td>
+      {% if quincena %}<td class="num">{% if editable %}<input class="mini-num" type="number" min="0" max="16" name="dnl_{{ l.id }}" value="{{ l.dias_no_laborados }}">{% else %}{{ l.dias_no_laborados }}{% endif %}</td>{% endif %}
+      <td class="num">{{ l.dias }}</td>
+      <td class="num">{{ l.salario|q }}</td>
+      {% if quincena %}<td class="num">{{ l.bonificacion|q }}</td>{% endif %}
+      {% if p.tipo != 'liquidacion' %}<td class="num">{% if editable %}<input class="mini-num" name="oi_{{ l.id }}" value="{{ l.otros_ingresos }}" inputmode="decimal">{% else %}{{ l.otros_ingresos|q }}{% endif %}</td>{% endif %}
+      {% if quincena %}<td class="num">{{ l.igss|q }}</td><td class="num">{{ l.isr|q }}</td>{% endif %}
+      {% if p.tipo != 'liquidacion' %}<td class="num">{% if editable %}<input class="mini-num" name="od_{{ l.id }}" value="{{ l.otros_descuentos }}" inputmode="decimal">{% else %}{{ l.otros_descuentos|q }}{% endif %}</td>{% endif %}
+      <td class="num"><strong>{{ l.liquido|q }}</strong></td>
+      <td><input type="checkbox" name="firmado_{{ l.id }}" value="1" {{ 'checked' if l.firmado }} {{ 'disabled' if not editable }}></td>
+    </tr>
+    {% if conceptos.get(l.id) %}
+    <tr><td colspan="12">
+      <table class="conceptos"><tbody>
+      {% for nombre, valor in conceptos[l.id] %}<tr><td>{{ nombre }}</td><td class="num">{{ valor|q }}</td></tr>{% endfor %}
+      </tbody></table>
+    </td></tr>
+    {% endif %}
+  {% else %}<tr><td colspan="12" class="sutil">No hay colaboradores de este patrono en el período.</td></tr>{% endfor %}
+  </tbody>
+  {% if p.lineas %}
+  <tfoot><tr>
+    <td colspan="{{ 3 if quincena else 2 }}">Totales ({{ p.lineas|length }})</td><td></td>
+    <td class="num">{{ p.total('salario')|q }}</td>
+    {% if quincena %}<td class="num">{{ p.total('bonificacion')|q }}</td>{% endif %}
+    {% if p.tipo != 'liquidacion' %}<td class="num">{{ p.total('otros_ingresos')|q }}</td>{% endif %}
+    {% if quincena %}<td class="num">{{ p.total('igss')|q }}</td><td class="num">{{ p.total('isr')|q }}</td>{% endif %}
+    {% if p.tipo != 'liquidacion' %}<td class="num">{{ p.total('otros_descuentos')|q }}</td>{% endif %}
+    <td class="num">{{ p.total('liquido')|q }}</td><td></td>
+  </tr></tfoot>
+  {% endif %}
+</table>
+{% if quincena %}<p class="sutil">Cuota patronal estimada (IGSS, IRTRA e INTECAP): {{ p.total('patronal')|q }}. Efectivo a preparar: {{ p.total('liquido')|q }}.</p>{% endif %}
+</div>
+{% if editable %}
+<label>Notas<textarea name="notas" rows="2">{{ p.notas }}</textarea></label>
+<div class="acciones"><button class="btn">Guardar y recalcular</button></div>
+{% endif %}
+</form>
+
+{% if editable %}
+<div class="acciones">
+  <form method="post" action="/planillas/{{ p.id }}/cerrar"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn secundario">Cerrar planilla (todos firmaron)</button></form>
+  <form method="post" action="/planillas/{{ p.id }}/eliminar" onsubmit="return confirm('¿Eliminar esta planilla en borrador?')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn-link peligro">Eliminar borrador</button></form>
+</div>
+<p class="sutil">Una planilla cerrada ya no se puede modificar; cualquier corrección va en la siguiente.</p>
+{% endif %}
+{% endblock %}

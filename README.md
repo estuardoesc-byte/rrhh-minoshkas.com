@@ -16,7 +16,14 @@ El diseño y las reglas de cálculo están en el documento *Sistema de RRHH Mino
 - Parámetros legales editables: salario mínimo, bonificación incentivo y porcentajes de IGSS, IRTRA e INTECAP.
 - Importación de colaboradores desde la hoja "empleados" del ERP (menú Importar, archivo CSV descargado de Google Sheets).
 
-Pendiente para los pasos 3 y 4: nóminas quincenales y mensuales, bono 14, aguinaldo, provisiones, liquidaciones, recibos y reportes.
+## Qué agrega el paso 3
+
+- Planillas por patrono: primera y segunda quincena, bono 14 y aguinaldo. Se registran días no laborados, otros ingresos y descuentos, y se marca la firma de cada recibo; una planilla solo se cierra cuando todos firmaron.
+- IGSS laboral en cada quincena, ISR estimado y cuota patronal (IGSS, IRTRA, INTECAP).
+- Liquidaciones por tipo de terminación (renuncia, despidos, mutuo acuerdo, fallecimiento, fin de plazo), con indemnización, vacaciones, bono 14 y aguinaldo proporcionales.
+- Provisiones mensuales de aguinaldo, bono 14, vacaciones e indemnización por patrono.
+
+Pendiente para el paso 4: recibos imprimibles, nómina gerencial por sucursal y exportación a Excel y PDF.
 
 ## Probarlo en una computadora
 
@@ -35,7 +42,11 @@ Luego abre http://localhost:8000.
 
 Pruebas automáticas: `pytest`.
 
-## Publicarlo en la nube (Render)
+## Instalarlo en una computadora de la oficina (sin costo)
+
+Es la opción elegida. Guía completa en [`instalacion/PUBLICAR.md`](instalacion/PUBLICAR.md): `INSTALAR.bat` de doble clic, arranque automático, respaldo diario a Google Drive y acceso privado con Tailscale (sin tocar el dominio, GoDaddy ni Google).
+
+## Alternativa pagada: Render
 
 El archivo `render.yaml` crea un servicio web con un disco de 5 GB donde viven la base de datos y los documentos. Costo aproximado: US$7 al mes del plan Starter más unos US$1.25 del disco; Render hace una copia diaria del disco.
 
@@ -50,10 +61,6 @@ El archivo `render.yaml` crea un servicio web con un disco de 5 GB donde viven l
    ```
 4. Entra a la dirección que da Render (termina en `.onrender.com`) y, en **Importar**, sube la hoja "empleados" del ERP descargada como CSV.
 5. Revisa en **Parámetros** que el salario mínimo (Q3,816.90 para 2026) esté vigente.
-
-## Versión anterior en el navegador
-
-`nomina-navegador.html` es la primera página de nómina que ya estaba en este repositorio (antes `index.html`). Guarda los datos solo en el navegador. Se conserva como referencia mientras la aplicación nueva incorpora las planillas de anticipo y fin de mes.
 
 ## Configuración
 

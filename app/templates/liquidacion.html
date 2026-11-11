@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Liquidación · {{ e.nombre_completo }}{% endblock %}
+{% block contenido %}
+<h1>Liquidación de {{ e.nombre_completo }}</h1>
+<p class="sutil">Ingreso {{ e.fecha_ingreso|fecha or 'sin registrar' }} · Salario base {{ e.salario_base|q }} · Patrono: {{ e.empresa.razon_social if e.empresa else 'sin asignar' }}</p>
+{% if not e.fecha_ingreso or not e.empresa %}<p class="alerta">Registra la fecha de ingreso y el patrono en la ficha antes de liquidar.</p>{% endif %}
+
+<form method="get" class="tarjeta">
+  <h2>Datos de la terminación</h2>
+  <div class="rejilla">
+    <label>Tipo de terminación<select name="tipo">{% for k, v in tipos.items() %}<option value="{{ k }}" {{ 'selected' if d.tipo == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Fecha de baja<input type="date" name="fecha_baja" value="{{ d.fecha_baja }}"></label>
+    <label>Salario pagado hasta<input type="date" name="pagado_hasta" value="{{ d.pagado_hasta }}"></label>
+    <label>Salario promedio últimos 6 meses (Q)<input name="salario_promedio" value="{{ d.salario_promedio }}" inputmode="decimal"></label>
+    <label>Días de vacaciones pendientes<input name="dias_vacaciones" value="{{ d.dias_vacaciones }}" inputmode="decimal"></label>
+    <label>Otros descuentos (Q)<input name="otros_descuentos" value="{{ d.otros_descuentos }}" inputmode="decimal"></label>
+    <label>Monto pactado (solo mutuo acuerdo)<input name="monto_pactado" value="{{ d.monto_pactado }}" inputmode="decimal"></label>
+    <label class="ancho">Motivo u observaciones<input name="motivo" value="{{ d.motivo }}"></label>
+  </div>
+  <div class="acciones"><button class="btn secundario">Calcular</button></div>
+  <p class="sutil">Vacaciones sugeridas: días proporcionales desde el último aniversario más los días pendientes registrados en la ficha. Ajústalas si ya gozó parte.</p>
+</form>
+
+{% if liq %}
+<section class="tarjeta">
+  <h2>Cálculo</h2>
+  <table>
+    <tbody>
+    {% for nombre, valor in liq.conceptos %}<tr><td>{{ nombre }}</td><td class="num">{{ valor|q }}</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr><td>Total a pagar</td><td class="num">{{ liq.total|q }}</td></tr></tfoot>
+  </table>
+  {% if e.empresa and e.estado != 'retirado' %}
+  <form method="post" action="/empleados/{{ e.id }}/liquidacion" onsubmit="return confirm('Se registrará la liquidación y el colaborador quedará como retirado. ¿Continuar?')">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% for k in ['tipo', 'fecha_baja', 'pagado_hasta', 'salario_promedio', 'dias_vacaciones', 'otros_descuentos', 'monto_pactado', 'motivo'] %}<input type="hidden" name="{{ k }}" value="{{ d[k] }}">{% endfor %}
+    <div class="acciones"><button class="btn">Registrar liquidación</button></div>
+  </form>
+  {% endif %}
+  <p class="sutil">Revisa el cálculo con el contador antes de pagar. Bono 14 y aguinaldo usan el salario promedio indicado.</p>
+</section>
+{% endif %}
+{% endblock %}

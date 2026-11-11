@@ -4,6 +4,21 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _cargar_env(archivo: Path) -> None:
+    """Lee un archivo .env sencillo (CLAVE=valor) sin pisar variables ya definidas."""
+    if not archivo.exists():
+        return
+    for linea in archivo.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, valor = linea.split("=", 1)
+        os.environ.setdefault(clave.strip(), valor.strip().strip('"'))
+
+
+_cargar_env(BASE_DIR / ".env")
+
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'datos' / 'rrhh.db'}")
 # Algunos proveedores entregan postgres:// y SQLAlchemy espera postgresql://
 if DATABASE_URL.startswith("postgres://"):

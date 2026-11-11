@@ -13,6 +13,9 @@
   <nav>
     <a href="/" class="{{ 'activo' if request.url.path == '/' }}">Inicio</a>
     <a href="/empleados" class="{{ 'activo' if request.url.path.startswith('/empleados') }}">Colaboradores</a>
+    <a href="/planillas" class="{{ 'activo' if request.url.path.startswith('/planillas') }}">Planillas</a>
+    <a href="/provisiones" class="{{ 'activo' if request.url.path.startswith('/provisiones') }}">Provisiones</a>
+    <a href="/reportes/gerencial" class="{{ 'activo' if request.url.path.startswith('/reportes') }}">Nómina gerencial</a>
     <a href="/empresas" class="{{ 'activo' if request.url.path.startswith('/empresas') }}">Patronos</a>
     <a href="/sucursales" class="{{ 'activo' if request.url.path.startswith('/sucursales') }}">Sucursales</a>
     <a href="/importar" class="{{ 'activo' if request.url.path.startswith('/importar') }}">Importar</a>

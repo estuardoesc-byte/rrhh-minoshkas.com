@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Provisiones · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Provisiones de {{ meses[mes - 1] }} {{ anio }}</h1>
+  <a class="btn secundario" href="/provisiones/excel?anio={{ anio }}&mes={{ mes }}">Descargar Excel</a>
+</div>
+<form method="get" class="filtros">
+  <select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select>
+  <input type="number" name="anio" value="{{ anio }}" min="2020" max="2100" class="corto">
+  <button class="btn secundario">Ver</button>
+</form>
+<p class="sutil">Reserva mensual sobre el salario base del mes (sin bonificación incentivo): aguinaldo 8.33%, bono 14 8.33%, vacaciones 4.17%, indemnización 9.72%. La cuota patronal suma IGSS, IRTRA e INTECAP.</p>
+{% for g in grupos %}
+<section class="tarjeta tabla-scroll">
+  <h2>{{ g.empresa.razon_social }}</h2>
+  <table>
+    <thead><tr><th>Colaborador</th><th>Sucursal</th><th class="num">Salario del mes</th><th class="num">Aguinaldo</th><th class="num">Bono 14</th><th class="num">Vacaciones</th><th class="num">Indemnización</th><th class="num">Cuota patronal</th></tr></thead>
+    <tbody>
+    {% for f in g.filas %}
+      <tr><td>{{ f.e.nombre_completo }}</td><td>{{ f.e.sucursal.nombre if f.e.sucursal }}</td><td class="num">{{ f.salario|q }}</td><td class="num">{{ f.aguinaldo|q }}</td><td class="num">{{ f.bono14|q }}</td><td class="num">{{ f.vacaciones|q }}</td><td class="num">{{ f.indemnizacion|q }}</td><td class="num">{{ f.patronal|q }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="2">Total</td><td class="num">{{ g.totales.salario|q }}</td><td class="num">{{ g.totales.aguinaldo|q }}</td><td class="num">{{ g.totales.bono14|q }}</td><td class="num">{{ g.totales.vacaciones|q }}</td><td class="num">{{ g.totales.indemnizacion|q }}</td><td class="num">{{ g.totales.patronal|q }}</td></tr></tfoot>
+  </table>
+</section>
+{% else %}
+<p class="sutil">No hay colaboradores con patrono en ese mes.</p>
+{% endfor %}
+{% endblock %}
