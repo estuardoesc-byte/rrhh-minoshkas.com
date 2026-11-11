@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block contenido %}
+<h1>Inicio</h1>
+<div class="kpis">
+  <div class="kpi"><span>Colaboradores activos</span><strong>{{ total_activos }}</strong></div>
+  <div class="kpi"><span>Tarjetas de salud por vencer o sin registrar</span><strong>{{ tarjetas|length }}</strong></div>
+  <div class="kpi"><span>Expedientes incompletos</span><strong>{{ incompletos|length }}</strong></div>
+  <div class="kpi"><span>Salario mínimo configurado</span><strong>{{ minimo|q if minimo > 0 else 'Pendiente' }}</strong></div>
+</div>
+
+{% if minimo <= 0 %}
+<p class="alerta">Falta registrar el salario mínimo no agrícola vigente en <a href="/parametros">Parámetros</a>. Sin él, el sistema no puede validar los salarios.</p>
+{% endif %}
+{% if sin_patrono %}
+<p class="alerta">{{ sin_patrono|length }} colaborador(es) activo(s) sin patrono asignado. Cada colaborador debe pertenecer a un patrono para el IGSS y el libro de salarios.</p>
+{% endif %}
+
+<div class="columnas">
+  <section class="tarjeta">
+    <h2>Por sucursal</h2>
+    <table><tbody>
+    {% for nombre, n in por_sucursal %}<tr><td>{{ nombre }}</td><td class="num">{{ n }}</td></tr>{% else %}<tr><td class="sutil">Sin sucursales registradas.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+  <section class="tarjeta">
+    <h2>Por patrono</h2>
+    <table><tbody>
+    {% for nombre, n in por_empresa %}<tr><td>{{ nombre }}</td><td class="num">{{ n }}</td></tr>{% else %}<tr><td class="sutil">Sin patronos registrados.</td></tr>{% endfor %}
+    </tbody></table>
+  </section>
+</div>
+
+<section class="tarjeta">
+  <h2>Tarjetas de salud</h2>
+  <table>
+    <thead><tr><th>Colaborador</th><th>Sucursal</th><th>Vence</th><th></th></tr></thead>
+    <tbody>
+    {% for e in tarjetas %}
+      <tr>
+        <td><a href="/empleados/{{ e.id }}">{{ e.nombre_completo }}</a></td>
+        <td>{{ e.sucursal.nombre if e.sucursal }}</td>
+        <td>{{ e.tarjeta_salud_vence|fecha or 'Sin registrar' }}</td>
+        <td>{% if not e.tarjeta_salud_vence %}<span class="etiqueta gris">Sin dato</span>{% elif e.tarjeta_salud_vence < hoy %}<span class="etiqueta roja">Vencida</span>{% else %}<span class="etiqueta ambar">Por vencer</span>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="4" class="sutil">Todas las tarjetas están vigentes.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if contratos %}
+<section class="tarjeta">
+  <h2>Contratos por vencer</h2>
+  <table><tbody>
+  {% for e in contratos %}<tr><td><a href="/empleados/{{ e.id }}">{{ e.nombre_completo }}</a></td><td>{{ e.tipo_contrato }}</td><td>{{ e.fecha_fin_contrato|fecha }}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+
+{% if bajo_minimo %}
+<section class="tarjeta">
+  <h2>Salario menor al mínimo</h2>
+  <table><tbody>
+  {% for e in bajo_minimo %}<tr><td><a href="/empleados/{{ e.id }}">{{ e.nombre_completo }}</a></td><td>{{ e.jornada }}</td><td class="num">{{ e.salario_base|q }}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+
+<section class="tarjeta">
+  <h2>Expedientes incompletos</h2>
+  <table><tbody>
+  {% for e, faltan in incompletos %}<tr><td><a href="/empleados/{{ e.id }}#documentos">{{ e.nombre_completo }}</a></td><td class="sutil">Falta: {{ faltan|join(', ') }}</td></tr>
+  {% else %}<tr><td class="sutil">Todos los expedientes tienen foto, DPI, contrato y tarjeta de salud.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}

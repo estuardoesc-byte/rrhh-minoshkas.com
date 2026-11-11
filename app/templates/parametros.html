@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Parámetros · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>Parámetros legales</h1>
+<p class="sutil">Actualiza estos valores cuando cambie la ley, por ejemplo cada enero con el nuevo acuerdo de salario mínimo. Los porcentajes deben revisarse con el contador.</p>
+<form method="post" action="/parametros" class="tarjeta">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <table>
+    <thead><tr><th>Parámetro</th><th>Valor</th><th>Última actualización</th></tr></thead>
+    <tbody>
+    {% for p in lista %}
+      <tr><td>{{ p.descripcion }}</td><td><input name="{{ p.clave }}" value="{{ p.valor }}" inputmode="decimal" class="corto"></td><td class="sutil">{{ p.actualizado.strftime('%d/%m/%Y') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="acciones"><button class="btn">Guardar</button></div>
+</form>
+{% endblock %}

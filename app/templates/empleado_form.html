@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% macro campo(nombre, etiqueta, valor, tipo="text", extra="") -%}
+<label>{{ etiqueta }}<input type="{{ tipo }}" name="{{ nombre }}" value="{{ valor if valor is not none else '' }}" {{ extra|safe }}></label>
+{%- endmacro %}
+{% macro lista(nombre, etiqueta, opciones, valor) -%}
+<label>{{ etiqueta }}<select name="{{ nombre }}">{% for o in opciones %}<option value="{{ o }}" {{ 'selected' if valor == o }}>{{ o|capitalize }}</option>{% endfor %}</select></label>
+{%- endmacro %}
+{% block titulo %}{{ 'Nuevo colaborador' if nuevo else 'Editar ' ~ e.nombre_completo }} · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>{{ 'Nuevo colaborador' if nuevo else 'Editar ficha de ' ~ e.nombre_completo }}</h1>
+{% if errores %}<div class="alerta"><strong>Revisa estos datos:</strong><ul>{% for x in errores %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" action="{{ '/empleados/nuevo' if nuevo else '/empleados/' ~ e.id ~ '/editar' }}" class="ficha-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+
+  <fieldset class="tarjeta"><legend>Datos personales</legend>
+    <div class="rejilla">
+      {{ campo("nombres", "Nombres *", e.nombres, extra="required") }}
+      {{ campo("apellidos", "Apellidos", e.apellidos) }}
+      {{ campo("dpi", "DPI (CUI, 13 dígitos)", e.dpi, extra='inputmode="numeric"') }}
+      {{ campo("nit", "NIT", e.nit) }}
+      {{ campo("afiliacion_igss", "Afiliación IGSS", e.afiliacion_igss) }}
+      {{ campo("fecha_nacimiento", "Fecha de nacimiento", e.fecha_nacimiento, "date") }}
+      <label>Sexo<select name="sexo"><option value=""></option>{% for o in ["F", "M"] %}<option value="{{ o }}" {{ 'selected' if e.sexo == o }}>{{ 'Femenino' if o == 'F' else 'Masculino' }}</option>{% endfor %}</select></label>
+      <label>Estado civil<select name="estado_civil"><option value=""></option>{% for o in estados_civiles %}<option value="{{ o }}" {{ 'selected' if e.estado_civil == o }}>{{ o }}</option>{% endfor %}</select></label>
+      {{ campo("nacionalidad", "Nacionalidad", e.nacionalidad) }}
+      {{ campo("telefono", "Teléfono", e.telefono, "tel") }}
+      {{ campo("email", "Correo", e.email, "email") }}
+      {{ campo("numero_hijos", "Número de hijos", e.numero_hijos, "number", 'min="0"') }}
+      {{ campo("nivel_academico", "Nivel académico", e.nivel_academico) }}
+      <label class="ancho">Dirección<input type="text" name="direccion" value="{{ e.direccion or '' }}"></label>
+    </div>
+  </fieldset>
+
+  <fieldset class="tarjeta"><legend>Datos laborales</legend>
+    <div class="rejilla">
+      {{ campo("codigo", "Código (se genera si lo dejas vacío)", e.codigo) }}
+      {{ campo("puesto", "Puesto", e.puesto) }}
+      <label>Patrono<select name="empresa_id"><option value="">Sin asignar</option>{% for p in empresas %}<option value="{{ p.id }}" {{ 'selected' if e.empresa_id == p.id }}>{{ p.razon_social }}</option>{% endfor %}</select></label>
+      <label>Sucursal<select name="sucursal_id"><option value="">Sin asignar</option>{% for s in sucursales %}<option value="{{ s.id }}" {{ 'selected' if e.sucursal_id == s.id }}>{{ s.nombre }}</option>{% endfor %}</select></label>
+      {{ campo("fecha_ingreso", "Fecha de ingreso", e.fecha_ingreso, "date") }}
+      {{ lista("tipo_contrato", "Tipo de contrato", contratos, e.tipo_contrato) }}
+      {{ campo("fecha_fin_contrato", "Fin de contrato (plazo fijo u obra)", e.fecha_fin_contrato, "date") }}
+      {{ lista("jornada", "Jornada", jornadas, e.jornada) }}
+      {{ campo("salario_base", "Salario base mensual (Q)", e.salario_base, "number", 'step="0.01" min="0"') }}
+      {{ campo("bonificacion_incentivo", "Bonificación incentivo (Q)", e.bonificacion_incentivo, "number", 'step="0.01" min="0"') }}
+      {{ campo("vacaciones_previas", "Días de vacaciones pendientes al ingresar al sistema", e.vacaciones_previas, "number", 'min="0"') }}
+      {{ lista("estado", "Estado", estados, e.estado) }}
+      {{ campo("fecha_baja", "Fecha de baja", e.fecha_baja, "date") }}
+      {{ campo("motivo_baja", "Motivo de baja", e.motivo_baja) }}
+    </div>
+  </fieldset>
+
+  <fieldset class="tarjeta"><legend>Contactos y salud</legend>
+    <div class="rejilla">
+      {{ campo("emergencia_nombre", "Contacto de emergencia", e.emergencia_nombre) }}
+      {{ campo("emergencia_parentesco", "Parentesco", e.emergencia_parentesco) }}
+      {{ campo("emergencia_telefono", "Teléfono de emergencia", e.emergencia_telefono, "tel") }}
+      {{ campo("tarjeta_salud_numero", "Número de tarjeta de salud", e.tarjeta_salud_numero) }}
+      {{ campo("tarjeta_salud_vence", "Vencimiento de tarjeta de salud", e.tarjeta_salud_vence, "date") }}
+      <label class="ancho">Beneficiarios (prestación post mortem)<textarea name="beneficiarios" rows="2">{{ e.beneficiarios or '' }}</textarea></label>
+      <label class="ancho">Notas<textarea name="notas" rows="3">{{ e.notas or '' }}</textarea></label>
+    </div>
+  </fieldset>
+
+  <div class="acciones">
+    <button type="submit" class="btn">Guardar</button>
+    <a class="btn secundario" href="{{ '/empleados' if nuevo else '/empleados/' ~ e.id }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

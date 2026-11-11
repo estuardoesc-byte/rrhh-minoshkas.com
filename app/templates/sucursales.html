@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Sucursales · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>Sucursales</h1>
+{% for s in lista %}
+<form method="post" action="/sucursales" class="tarjeta fila-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ s.id }}">
+  <label>Nombre<input name="nombre" value="{{ s.nombre }}" required></label>
+  <label>Código<input name="codigo" value="{{ s.codigo }}" size="5"></label>
+  <label>Dirección<input name="direccion" value="{{ s.direccion }}"></label>
+  <label>Municipio<input name="municipio" value="{{ s.municipio }}"></label>
+  <label>Departamento<input name="departamento" value="{{ s.departamento }}"></label>
+  <label class="check"><input type="checkbox" name="activa" value="1" {{ 'checked' if s.activa }}> Activa</label>
+  <button class="btn secundario">Guardar</button>
+</form>
+{% endfor %}
+<h2>Agregar sucursal</h2>
+<form method="post" action="/sucursales" class="tarjeta fila-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Nombre<input name="nombre" required></label>
+  <label>Código<input name="codigo" size="5"></label>
+  <label>Dirección<input name="direccion"></label>
+  <label>Municipio<input name="municipio"></label>
+  <label>Departamento<input name="departamento" value="Sacatepéquez"></label>
+  <input type="hidden" name="activa" value="1">
+  <button class="btn">Agregar</button>
+</form>
+{% endblock %}
