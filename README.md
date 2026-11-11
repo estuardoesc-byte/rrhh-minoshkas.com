@@ -49,7 +49,7 @@ El archivo `render.yaml` crea un servicio web con un disco de 5 GB donde viven l
    python -m scripts.crear_usuario "Estuardo Santa Cruz" <tu correo>
    ```
 4. Entra a la dirección que da Render (termina en `.onrender.com`) y, en **Importar**, sube la hoja "empleados" del ERP descargada como CSV.
-5. Entra a la dirección que da Render (termina en `.onrender.com`) y revisa en **Parámetros** que el salario mínimo (Q3,816.90 para 2026) esté vigente.
+5. Revisa en **Parámetros** que el salario mínimo (Q3,816.90 para 2026) esté vigente.
 
 ## Versión anterior en el navegador
 
