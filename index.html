@@ -40,6 +40,14 @@ tfoot td{font-weight:700;background:#eef1f7}
 .note{font-size:12px;color:var(--muted);margin:8px 0 0}
 .hide{display:none}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.mbtn{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;font:inherit;background:var(--navy);color:#fff;border:0;border-radius:10px;padding:16px;cursor:pointer;min-height:130px}
+.mbtn:hover,.mbtn:focus-visible{background:var(--navy2);outline:2px solid var(--camel);outline-offset:2px}
+.mbtn b{font-size:17px}
+.mbtn span:last-child{font-size:13px;color:#d4dcec;line-height:1.4}
+.mbtn.sec{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.mbtn.sec span:last-child{color:var(--muted)}
+.mnum{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--camel);color:#fff;font-weight:700;font-size:14px}
 .msg{padding:8px 12px;border-radius:6px;background:#e6f2ea;color:var(--ok);font-size:13px;margin-top:8px}
 /* recibos */
 .recibo{background:#fff;border:1px solid #9aa6bd;border-radius:6px;padding:18px 22px;margin-bottom:16px;page-break-inside:avoid;break-inside:avoid}
@@ -78,7 +86,8 @@ tfoot td{font-weight:700;background:#eef1f7}
   <p>Planilla de anticipo quincenal, planilla de fin de mes y recibos individuales</p>
 </header>
 <nav id="tabs">
-  <button data-t="emp" class="on">Empleados</button>
+  <button data-t="ini" class="on">Inicio</button>
+  <button data-t="emp">Empleados</button>
   <button data-t="ant">Anticipo</button>
   <button data-t="fin">Fin de mes</button>
   <button data-t="rec">Recibos</button>
@@ -86,7 +95,23 @@ tfoot td{font-weight:700;background:#eef1f7}
 </nav>
 <main>
 
-<div class="card noprint" id="filtros">
+<!-- INICIO -->
+<section id="t-ini">
+  <div class="card">
+    <h2>Menú principal</h2>
+    <p class="note" style="margin:0 0 14px">Siga los pasos en orden cada mes. Toque el botón del paso que quiere hacer.</p>
+    <div class="menu">
+      <button class="mbtn" data-go="emp"><span class="mnum">1</span><b>Empleados</b><span>Agregar, editar o dar de baja trabajadores. Se hace una sola vez por persona.</span></button>
+      <button class="mbtn" data-go="ant"><span class="mnum">2</span><b>Anticipo quincenal</b><span>Planilla del anticipo de medio mes. Revise los montos e imprima.</span></button>
+      <button class="mbtn" data-go="fin"><span class="mnum">3</span><b>Fin de mes</b><span>Liquidación con IGSS, bonificación, otros ingresos y descuento del anticipo.</span></button>
+      <button class="mbtn" data-go="rec"><span class="mnum">4</span><b>Recibos</b><span>Recibo individual de cada trabajador, con el total en letras, para firmar.</span></button>
+      <button class="mbtn sec" data-go="cfg"><span class="mnum">⚙</span><b>Ajustes y respaldo</b><span>Salario mínimo, IGSS, patronos y copia de seguridad de los datos.</span></button>
+    </div>
+    <p class="note" id="iniResumen" style="margin-top:14px"></p>
+  </div>
+</section>
+
+<div class="card noprint hide" id="filtros">
   <div class="row">
     <label>Periodo<input type="month" id="periodo"></label>
     <label>Patrono<select id="fPatrono"></select></label>
@@ -95,7 +120,7 @@ tfoot td{font-weight:700;background:#eef1f7}
 </div>
 
 <!-- EMPLEADOS -->
-<section id="t-emp">
+<section id="t-emp" class="hide">
   <div class="card noprint">
     <h2 id="empTitulo">Nuevo empleado</h2>
     <form id="empForm" class="grid">
@@ -421,14 +446,18 @@ $("bkCargar").onchange=ev=>{
 };
 
 /* ---------- pestañas ---------- */
-let tab="emp";
-$("tabs").addEventListener("click",ev=>{const t=ev.target.dataset.t;if(!t)return;tab=t;
+let tab="ini";
+function ir(t){tab=t;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   document.querySelectorAll("main>section").forEach(s=>s.classList.toggle("hide",s.id!=="t-"+t));
-  $("filtros").classList.toggle("hide",t==="cfg");
-  render();
-});
-function render(){({emp:renderEmp,ant:renderAnt,fin:renderFin,rec:renderRec,cfg:renderCfg})[tab]()}
+  $("filtros").classList.toggle("hide",t==="cfg"||t==="ini");
+  render();window.scrollTo(0,0);
+}
+$("tabs").addEventListener("click",ev=>{const t=ev.target.dataset.t;if(t)ir(t)});
+document.querySelector(".menu").addEventListener("click",ev=>{const b=ev.target.closest("[data-go]");if(b)ir(b.dataset.go)});
+function renderIni(){const a=D.emps.filter(e=>e.activo!==false).length;
+  $("iniResumen").textContent=a?("Tiene "+a+" trabajador(es) activo(s) registrados."):"Todavía no hay trabajadores. Empiece por el paso 1, Empleados.";}
+function render(){({ini:renderIni,emp:renderEmp,ant:renderAnt,fin:renderFin,rec:renderRec,cfg:renderCfg})[tab]()}
 function todo(){llenarSelects();render()}
 ["periodo","fPatrono","fSucursal"].forEach(id=>$(id).addEventListener("change",render));
 
