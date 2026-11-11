@@ -24,10 +24,10 @@ h2{font-size:17px;margin:0 0 12px;color:var(--navy)}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
 input,select{font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);min-width:0}
-button.b{font:inherit;background:var(--navy);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
-button.b.sec{background:#fff;color:var(--navy);border:1px solid var(--navy)}
-button.b.del{background:#fff;color:var(--bad);border:1px solid var(--bad);padding:4px 10px;font-size:13px}
-button.b.sm{padding:4px 10px;font-size:13px}
+.b{display:inline-flex;align-items:center;font:inherit;background:var(--navy);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+.b.sec{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+.b.del{background:#fff;color:var(--bad);border:1px solid var(--bad);padding:4px 10px;font-size:13px}
+.b.sm{padding:4px 10px;font-size:13px}
 .tw{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:left;white-space:nowrap}
@@ -201,9 +201,13 @@ tfoot td{font-weight:700;background:#eef1f7}
   </div>
   <div class="card">
     <h2>Patronos</h2>
-    <p class="note" style="margin-top:0">Uno por línea. Cada patrono lleva su propia planilla.</p>
-    <textarea id="cPatronos" rows="6" style="width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px"></textarea>
-    <button class="b" id="cPatGuardar" style="margin-top:8px">Guardar patronos</button>
+    <p class="note" style="margin-top:0">Cada patrono lleva su propia planilla. El NIT, el número patronal del IGSS y el régimen salen en las planillas y en los recibos.</p>
+    <div class="tw"><table id="patTabla"></table></div>
+    <div class="row" style="margin-top:10px">
+      <button class="b sec" id="cPatNuevo" type="button">Agregar patrono</button>
+      <button class="b" id="cPatGuardar" type="button">Guardar patronos</button>
+    </div>
+    <div id="patMsg"></div>
   </div>
   <div class="card">
     <h2>Respaldo</h2>
@@ -226,7 +230,12 @@ const TIPOS=["","Horas extra","Comisiones","Vacaciones","Bono 14","Aguinaldo","O
 const AFECTO_IGSS={"Horas extra":1,"Comisiones":1,"Vacaciones":1,"Otro":1};
 const DEF={
   cfg:{min:3816.90,bono:250,igss:4.83,antPct:40},
-  patronos:["Inversiones Santa Cruz, S.A.","Minoshkas Girl (Estuardo Santa Cruz)","Sandra Marquez","Estuardo Santa Cruz Marquez","Alejandra Santa Cruz"],
+  patronos:[
+    {nombre:"Inversiones Santa Cruz, S.A.",nit:"",patronal:"",regimen:"General"},
+    {nombre:"Minoshkas Girl (Estuardo Santa Cruz)",nit:"",patronal:"",regimen:"Pequeño contribuyente"},
+    {nombre:"Sandra Marquez",nit:"",patronal:"",regimen:"General"},
+    {nombre:"Estuardo Santa Cruz Marquez",nit:"",patronal:"",regimen:"General"},
+    {nombre:"Alejandra Santa Cruz",nit:"",patronal:"",regimen:"Pequeño contribuyente"}],
   emps:[], periodos:{}
 };
 let D;
@@ -234,7 +243,8 @@ function load(){
   try{const s=localStorage.getItem(KEY); D=s?JSON.parse(s):null;}catch(e){D=null}
   if(!D) D=JSON.parse(JSON.stringify(DEF));
   D.cfg=Object.assign({},DEF.cfg,D.cfg||{});
-  D.patronos=D.patronos&&D.patronos.length?D.patronos:DEF.patronos.slice();
+  D.patronos=D.patronos&&D.patronos.length?D.patronos:JSON.parse(JSON.stringify(DEF.patronos));
+  D.patronos=D.patronos.map(p=>typeof p==="string"?{nombre:p,nit:"",patronal:"",regimen:""}:p);
   D.emps=D.emps||[]; D.periodos=D.periodos||{};
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D))}catch(e){}}
@@ -301,8 +311,8 @@ function calcFin(e){
 function llenarSelects(){
   const opt=(v,t,sel)=>`<option value="${esc(v)}"${sel?" selected":""}>${esc(t)}</option>`;
   const fp=$("fPatrono").value,fs=$("fSucursal").value,ep=$("ePatrono").value;
-  $("fPatrono").innerHTML=opt("","Todos")+D.patronos.map(p=>opt(p,p,p===fp)).join("");
-  $("ePatrono").innerHTML=D.patronos.map(p=>opt(p,p,p===ep)).join("");
+  $("fPatrono").innerHTML=opt("","Todos")+D.patronos.map(p=>opt(p.nombre,p.nombre,p.nombre===fp)).join("");
+  $("ePatrono").innerHTML=D.patronos.map(p=>opt(p.nombre,p.nombre,p.nombre===ep)).join("");
   const sucs=[...new Set(D.emps.map(e=>e.sucursal).filter(Boolean).concat(["Chimaltenango","San Lucas Sacatepéquez","CC El Panorama","7ma calle","4ta calle","5ta calle","Glamour","Bamboo 1","Bamboo Jr","Parque"]))].sort();
   $("fSucursal").innerHTML=opt("","Todas")+[...new Set(D.emps.map(e=>e.sucursal).filter(Boolean))].sort().map(s=>opt(s,s,s===fs)).join("");
   $("sucursales").innerHTML=sucs.map(s=>`<option>${esc(s)}</option>`).join("");
@@ -343,9 +353,13 @@ $("empTabla").addEventListener("click",ev=>{
 });
 
 /* ---------- títulos de impresión ---------- */
+function patDe(n){return D.patronos.find(p=>p.nombre===n)||{nombre:n||"",nit:"",patronal:"",regimen:""}}
+function patInfo(n){const p=patDe(n),a=[];
+  if(p.nit)a.push("NIT "+esc(p.nit));if(p.patronal)a.push("No. patronal IGSS "+esc(p.patronal));if(p.regimen)a.push("Régimen "+esc(p.regimen));
+  return a.join(" · ");}
 function ptitle(tipo,fecha){
-  const pat=$("fPatrono").value||"Todos los patronos",suc=$("fSucursal").value;
-  return `<b>${esc(pat)}</b><br>Planilla de ${tipo} correspondiente a ${perTexto(per())}${suc?" · Sucursal "+esc(suc):""}${fecha?" · Fecha de pago "+esc(fecha):""}`;
+  const pn=$("fPatrono").value,pat=pn||"Todos los patronos",suc=$("fSucursal").value,inf=pn?patInfo(pn):"";
+  return `<b>${esc(pat)}</b>${inf?"<br><span style='font-size:12px'>"+inf+"</span>":""}<br>Planilla de ${tipo} correspondiente a ${perTexto(per())}${suc?" · Sucursal "+esc(suc):""}${fecha?" · Fecha de pago "+esc(fecha):""}`;
 }
 
 /* ---------- anticipo ---------- */
@@ -406,7 +420,7 @@ function renderRec(){
   const tipo=$("recTipo").value,p=P(),lista=sel?L.filter(e=>e.id===sel):L;
   if(!lista.length){$("recibos").innerHTML="<div class='card'>No hay empleados activos con este filtro.</div>";return}
   $("recibos").innerHTML=lista.map(e=>{
-    const head=`<div class="top"><div><b>${esc(e.patrono)}</b><br><span style="font-size:12px">Minoshkas Salón${e.sucursal?" · "+esc(e.sucursal):""}</span></div>
+    const head=`<div class="top"><div><b>${esc(e.patrono)}</b><br><span style="font-size:12px">Minoshkas Salón${e.sucursal?" · "+esc(e.sucursal):""}</span>${patInfo(e.patrono)?"<br><span style='font-size:11px'>"+patInfo(e.patrono)+"</span>":""}</div>
       <div style="text-align:right"><b>${tipo==="ant"?"RECIBO DE ANTICIPO":"RECIBO DE PAGO"}</b><br><span style="font-size:12px">${tipo==="ant"?"Anticipo quincenal":"Liquidación de fin de mes"} · ${perTexto(per())}</span></div></div>
       <div class="dat"><div>Trabajador(a): <b>${esc(e.nombre)}</b></div><div>DPI: ${esc(e.dpi)}</div><div>Puesto: ${esc(e.puesto)}</div><div>Afiliación IGSS: ${esc(e.igss)}</div>
       <div>Fecha de pago: ${esc((tipo==="ant"?p.antFecha:p.finFecha)||"__________")}</div><div>Fecha de ingreso: ${esc(e.ingreso)}</div></div>`;
@@ -429,9 +443,36 @@ function imprimir(rec){document.body.classList.toggle("rec",!!rec);window.print(
 $("antPrint").onclick=()=>imprimir(false);$("finPrint").onclick=()=>imprimir(false);$("recPrint").onclick=()=>imprimir(true);
 
 /* ---------- ajustes ---------- */
-function renderCfg(){$("cMin").value=D.cfg.min;$("cBono").value=D.cfg.bono;$("cIgss").value=D.cfg.igss;$("cAntPct").value=D.cfg.antPct;$("cPatronos").value=D.patronos.join("\n")}
+function renderCfg(){$("cMin").value=D.cfg.min;$("cBono").value=D.cfg.bono;$("cIgss").value=D.cfg.igss;$("cAntPct").value=D.cfg.antPct;renderPat()}
 $("cGuardar").onclick=()=>{D.cfg={min:num($("cMin").value),bono:num($("cBono").value),igss:num($("cIgss").value),antPct:num($("cAntPct").value)};save();aviso("Valores guardados.")};
-$("cPatGuardar").onclick=()=>{const l=$("cPatronos").value.split("\n").map(s=>s.trim()).filter(Boolean);if(l.length){D.patronos=l;save();llenarSelects();aviso("Patronos guardados.")}};
+let patTmp=[];
+function renderPat(){
+  patTmp=D.patronos.map(p=>Object.assign({orig:p.nombre},p));pintarPat();
+}
+function pintarPat(){
+  const REG=["","General","Pequeño contribuyente"];
+  $("patTabla").innerHTML="<thead><tr><th>Nombre o razón social</th><th>NIT</th><th>No. patronal IGSS</th><th>Régimen</th><th>Trabajadores</th><th></th></tr></thead><tbody>"+
+  patTmp.map((p,i)=>{const n=D.emps.filter(e=>e.patrono===p.orig).length;return `<tr data-i="${i}">
+   <td><input data-k="nombre" value="${esc(p.nombre)}" style="width:260px"></td>
+   <td><input data-k="nit" value="${esc(p.nit)}" style="width:120px"></td>
+   <td><input data-k="patronal" value="${esc(p.patronal)}" style="width:130px"></td>
+   <td><select data-k="regimen">${REG.map(r=>`<option${r===p.regimen?" selected":""}>${r}</option>`).join("")}</select></td>
+   <td class="n">${n}</td>
+   <td>${n?"":`<button class="b del" type="button" data-quitar="${i}">Quitar</button>`}</td></tr>`}).join("")+"</tbody>";
+}
+$("patTabla").addEventListener("input",ev=>{const k=ev.target.dataset.k;if(!k)return;patTmp[+ev.target.closest("tr").dataset.i][k]=ev.target.value});
+$("patTabla").addEventListener("change",ev=>{const k=ev.target.dataset.k;if(!k)return;patTmp[+ev.target.closest("tr").dataset.i][k]=ev.target.value});
+$("patTabla").addEventListener("click",ev=>{const q=ev.target.dataset.quitar;if(q===undefined)return;patTmp.splice(+q,1);pintarPat()});
+$("cPatNuevo").onclick=()=>{patTmp.push({orig:null,nombre:"",nit:"",patronal:"",regimen:""});pintarPat();
+  const ins=$("patTabla").querySelectorAll("input[data-k=nombre]");ins[ins.length-1].focus()};
+$("cPatGuardar").onclick=()=>{
+  const l=patTmp.map(p=>({orig:p.orig,nombre:p.nombre.trim(),nit:p.nit.trim(),patronal:p.patronal.trim(),regimen:p.regimen})).filter(p=>p.nombre);
+  if(!l.length){$("patMsg").innerHTML='<div class="msg" style="background:#f8e6e4;color:var(--bad)">Debe quedar al menos un patrono.</div>';return}
+  if(new Set(l.map(p=>p.nombre)).size!==l.length){$("patMsg").innerHTML='<div class="msg" style="background:#f8e6e4;color:var(--bad)">Hay dos patronos con el mismo nombre. Cambie uno.</div>';return}
+  l.forEach(p=>{if(p.orig&&p.orig!==p.nombre)D.emps.forEach(e=>{if(e.patrono===p.orig)e.patrono=p.nombre})});
+  D.patronos=l.map(({orig,...r})=>r);save();llenarSelects();renderPat();
+  $("patMsg").innerHTML='<div class="msg">Patronos guardados.</div>';setTimeout(()=>$("patMsg").innerHTML="",3000);
+};
 function aviso(t){$("bkMsg").innerHTML=`<div class="msg">${esc(t)}</div>`;setTimeout(()=>$("bkMsg").innerHTML="",3000)}
 $("bkDescargar").onclick=()=>{
   const b=new Blob([JSON.stringify(D,null,1)],{type:"application/json"}),a=document.createElement("a");
