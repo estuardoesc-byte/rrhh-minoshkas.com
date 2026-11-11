@@ -2,7 +2,7 @@
 import mimetypes
 from contextlib import asynccontextmanager
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -595,3 +595,280 @@ async def importar(
         db.rollback()
         return render(request, "importar.html", user, resultado=None, error=str(exc))
     return render(request, "importar.html", user, resultado=resultado, error=None)
+
+
+# ---------------------------------------------------------------- planillas (paso 3)
+
+import json  # noqa: E402
+from calendar import monthrange  # noqa: E402
+
+from . import calculos  # noqa: E402
+from .models import TIPOS_PLANILLA, Planilla, PlanillaLinea  # noqa: E402
+
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def tasas_vigentes(db: Session) -> calculos.Tasas:
+    return calculos.Tasas(
+        igss_laboral=parametro(db, "igss_laboral_pct"),
+        igss_patronal=parametro(db, "igss_patronal_pct"),
+        irtra=parametro(db, "irtra_pct"),
+        intecap=parametro(db, "intecap_pct"),
+    )
+
+
+def _decimal(valor, defecto=Decimal("0")) -> Decimal:
+    try:
+        return Decimal(str(valor or "0").replace(",", "").replace("Q", "").strip() or "0")
+    except InvalidOperation:
+        return defecto
+
+
+def _entero_form(valor) -> int:
+    v = str(valor or "0").strip()
+    return int(v) if v.isdigit() else 0
+
+
+def empleados_del_periodo(db: Session, empresa_id: int, desde: date, hasta: date) -> list[Empleado]:
+    lista = db.query(Empleado).filter(Empleado.empresa_id == empresa_id).order_by(Empleado.nombres).all()
+    return [
+        e for e in lista
+        if (e.fecha_ingreso is None or e.fecha_ingreso <= hasta)
+        and (e.estado != "retirado" or (e.fecha_baja and e.fecha_baja >= desde))
+    ]
+
+
+def calcular_linea(linea: PlanillaLinea, planilla: Planilla, e: Empleado, tasas: calculos.Tasas) -> None:
+    linea.salario_base = e.salario_base
+    linea.sucursal_nombre = e.sucursal.nombre if e.sucursal else ""
+    baja = e.fecha_baja if e.estado == "retirado" else None
+    if planilla.tipo in ("quincena1", "quincena2"):
+        trabajados = calculos.dias_laborados(e.fecha_ingreso, baja, planilla.desde, planilla.hasta)
+        fuera = calculos.dias_inclusivos(planilla.desde, planilla.hasta) - trabajados
+        q = calculos.calcular_quincena(
+            e.salario_base, e.bonificacion_incentivo, tasas,
+            dias_no_laborados=linea.dias_no_laborados or 0, dias_fuera_de_contrato=fuera,
+            otros_ingresos=linea.otros_ingresos or Decimal("0"), otros_descuentos=linea.otros_descuentos or Decimal("0"),
+        )
+        linea.dias = max(trabajados - (linea.dias_no_laborados or 0), 0)
+        linea.salario, linea.bonificacion, linea.igss, linea.isr = q.salario, q.bonificacion, q.igss, q.isr
+        linea.liquido = q.liquido
+        linea.patronal = calculos.cuota_patronal(q.salario + q.otros_ingresos, tasas)
+    else:  # bono 14 o aguinaldo: exentos de IGSS e ISR
+        dias, monto = calculos.prestacion_anual(e.salario_base, e.fecha_ingreso, baja, planilla.desde, planilla.hasta)
+        linea.dias, linea.salario, linea.bonificacion = dias, monto, Decimal("0")
+        linea.igss = linea.isr = linea.patronal = Decimal("0")
+        linea.liquido = monto + (linea.otros_ingresos or 0) - (linea.otros_descuentos or 0)
+
+
+@app.get("/planillas", response_class=HTMLResponse)
+def planillas(request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    lista = db.query(Planilla).order_by(Planilla.fecha_pago.desc(), Planilla.id.desc()).limit(200).all()
+    hoy = date.today()
+    return render(
+        request, "planillas.html", user, lista=lista, tipos={k: v for k, v in TIPOS_PLANILLA.items() if k != "liquidacion"},
+        empresas=db.query(Empresa).filter(Empresa.activa).order_by(Empresa.razon_social).all(),
+        meses=MESES, anio=hoy.year, mes=hoy.month, error=request.query_params.get("error"),
+    )
+
+
+@app.post("/planillas/nueva")
+async def planilla_crear(request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    form = await form_con_csrf(request)
+    tipo = form.get("tipo")
+    empresa_ids = [int(x) for x in form.getlist("empresa_id") if str(x).isdigit()]
+    anio, mes = _entero_form(form.get("anio")), _entero_form(form.get("mes"))
+    if tipo not in TIPOS_PLANILLA or tipo == "liquidacion" or not empresa_ids or not (2000 <= anio <= 2100) or not (1 <= mes <= 12):
+        return RedirectResponse("/planillas?error=Revisa+el+tipo,+el+patrono+y+el+período", status_code=303)
+    if tipo == "quincena1":
+        desde, hasta = calculos.periodo_quincena(anio, mes, 1)
+        pago = hasta
+    elif tipo == "quincena2":
+        desde, hasta = calculos.periodo_quincena(anio, mes, 2)
+        pago = hasta
+    elif tipo == "bono14":
+        pago = date(anio, 7, 15)
+        desde, hasta = calculos.periodo_bono14(pago)
+    else:
+        pago = date(anio, 12, 15)
+        desde, hasta = calculos.periodo_aguinaldo(pago)
+    tasas = tasas_vigentes(db)
+    creada = None
+    for empresa_id in empresa_ids:
+        if db.query(Planilla).filter_by(tipo=tipo, empresa_id=empresa_id, desde=desde, hasta=hasta).first():
+            continue
+        p = Planilla(tipo=tipo, empresa_id=empresa_id, desde=desde, hasta=hasta, fecha_pago=pago, creada_por=user.nombre)
+        db.add(p)
+        db.flush()
+        for e in empleados_del_periodo(db, empresa_id, desde, hasta):
+            linea = PlanillaLinea(planilla_id=p.id, empleado_id=e.id)
+            calcular_linea(linea, p, e, tasas)
+            if linea.dias > 0:
+                p.lineas.append(linea)
+        creada = creada or p
+    db.commit()
+    if not creada:
+        return RedirectResponse("/planillas?error=Esa+planilla+ya+existe+para+el+patrono+elegido", status_code=303)
+    return RedirectResponse(f"/planillas/{creada.id}" if len(empresa_ids) == 1 else "/planillas", status_code=303)
+
+
+def _planilla_o_404(db: Session, pid: int) -> Planilla:
+    p = db.get(Planilla, pid)
+    if not p:
+        raise HTTPException(404, "Planilla no encontrada")
+    return p
+
+
+@app.get("/planillas/{pid}", response_class=HTMLResponse)
+def planilla_ver(pid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    p = _planilla_o_404(db, pid)
+    conceptos = {l.id: json.loads(l.detalle) for l in p.lineas if l.detalle}
+    return render(request, "planilla.html", user, p=p, conceptos=conceptos, error=request.query_params.get("error"))
+
+
+@app.post("/planillas/{pid}/guardar")
+async def planilla_guardar(pid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    form = await form_con_csrf(request)
+    p = _planilla_o_404(db, pid)
+    if p.estado == "cerrada":
+        raise HTTPException(400, "La planilla está cerrada y no se puede modificar.")
+    tasas = tasas_vigentes(db)
+    for linea in p.lineas:
+        if p.tipo != "liquidacion":
+            linea.dias_no_laborados = _entero_form(form.get(f"dnl_{linea.id}"))
+            linea.otros_ingresos = _decimal(form.get(f"oi_{linea.id}"))
+            linea.otros_descuentos = _decimal(form.get(f"od_{linea.id}"))
+            calcular_linea(linea, p, linea.empleado, tasas)
+        linea.firmado = form.get(f"firmado_{linea.id}") == "1"
+    p.notas = (form.get("notas") or "").strip()
+    db.commit()
+    return RedirectResponse(f"/planillas/{p.id}", status_code=303)
+
+
+@app.post("/planillas/{pid}/cerrar")
+async def planilla_cerrar(pid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    await form_con_csrf(request)
+    p = _planilla_o_404(db, pid)
+    pendientes = [l for l in p.lineas if not l.firmado]
+    if pendientes:
+        return RedirectResponse(f"/planillas/{p.id}?error=Faltan+{len(pendientes)}+recibos+por+firmar", status_code=303)
+    p.estado, p.cerrada = "cerrada", datetime.now()
+    db.commit()
+    return RedirectResponse(f"/planillas/{p.id}", status_code=303)
+
+
+@app.post("/planillas/{pid}/eliminar")
+async def planilla_eliminar(pid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    await form_con_csrf(request)
+    p = _planilla_o_404(db, pid)
+    if p.estado == "cerrada":
+        raise HTTPException(400, "Una planilla cerrada no se puede eliminar.")
+    db.delete(p)
+    db.commit()
+    return RedirectResponse("/planillas", status_code=303)
+
+
+# ---------------------------------------------------------------- liquidaciones
+
+
+def _form_liquidacion(form, e: Empleado) -> dict:
+    baja = None
+    try:
+        baja = date.fromisoformat(form.get("fecha_baja") or "")
+    except ValueError:
+        pass
+    baja = baja or date.today()
+    pagados_hasta = None
+    try:
+        pagados_hasta = date.fromisoformat(form.get("pagado_hasta") or "")
+    except ValueError:
+        pass
+    if pagados_hasta is None:
+        inicio_q = date(baja.year, baja.month, 1 if baja.day <= 15 else 16)
+        pagados_hasta = inicio_q - timedelta(days=1)
+    dias_pend = max((baja - pagados_hasta).days, 0)
+    ingreso = e.fecha_ingreso or baja
+    vac_def = calculos.vacaciones_proporcionales(ingreso, baja) + Decimal(e.vacaciones_previas or 0)
+    return dict(
+        tipo=form.get("tipo") if form.get("tipo") in calculos.TIPOS_TERMINACION else "renuncia",
+        fecha_baja=baja,
+        pagado_hasta=pagados_hasta,
+        dias_pendientes=dias_pend,
+        salario_promedio=_decimal(form.get("salario_promedio"), e.salario_base) if form.get("salario_promedio") else e.salario_base,
+        dias_vacaciones=_decimal(form.get("dias_vacaciones")) if form.get("dias_vacaciones") else vac_def,
+        otros_descuentos=_decimal(form.get("otros_descuentos")),
+        monto_pactado=_decimal(form.get("monto_pactado")),
+        motivo=(form.get("motivo") or "").strip(),
+    )
+
+
+def _calcular_liq(db: Session, e: Empleado, d: dict) -> calculos.Liquidacion:
+    return calculos.calcular_liquidacion(
+        tipo=d["tipo"], ingreso=e.fecha_ingreso or d["fecha_baja"], baja=d["fecha_baja"],
+        salario_base=e.salario_base, bonificacion=e.bonificacion_incentivo, salario_promedio=d["salario_promedio"],
+        tasas=tasas_vigentes(db), dias_salario_pendiente=d["dias_pendientes"],
+        dias_vacaciones_pendientes=d["dias_vacaciones"], otros_descuentos=d["otros_descuentos"],
+        monto_pactado=d["monto_pactado"],
+    )
+
+
+@app.get("/empleados/{eid}/liquidacion", response_class=HTMLResponse)
+def liquidacion_form(eid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    e = _empleado_o_404(db, eid)
+    d = _form_liquidacion(request.query_params, e)
+    liq = _calcular_liq(db, e, d) if e.fecha_ingreso else None
+    return render(request, "liquidacion.html", user, e=e, d=d, liq=liq, tipos=calculos.TIPOS_TERMINACION)
+
+
+@app.post("/empleados/{eid}/liquidacion")
+async def liquidacion_guardar(eid: int, request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    form = await form_con_csrf(request)
+    e = _empleado_o_404(db, eid)
+    if not e.fecha_ingreso or not e.empresa_id:
+        raise HTTPException(400, "El colaborador necesita fecha de ingreso y patrono para liquidarlo.")
+    d = _form_liquidacion(form, e)
+    liq = _calcular_liq(db, e, d)
+    p = Planilla(
+        tipo="liquidacion", empresa_id=e.empresa_id, desde=e.fecha_ingreso, hasta=d["fecha_baja"],
+        fecha_pago=date.today(), creada_por=user.nombre,
+        notas=f"{calculos.TIPOS_TERMINACION[d['tipo']]}. {d['motivo']}".strip(),
+    )
+    linea = PlanillaLinea(
+        empleado_id=e.id, salario_base=e.salario_base, sucursal_nombre=e.sucursal.nombre if e.sucursal else "",
+        dias=calculos.dias_inclusivos(e.fecha_ingreso, d["fecha_baja"]), salario=liq.total, liquido=liq.total,
+        detalle=json.dumps([[n, str(v)] for n, v in liq.conceptos], ensure_ascii=False),
+    )
+    p.lineas.append(linea)
+    db.add(p)
+    for campo, valor in (("Estado", "retirado"),):
+        db.add(HistorialEmpleado(empleado_id=e.id, campo=campo, valor_anterior=e.estado, valor_nuevo=valor, usuario=user.nombre))
+    e.estado, e.fecha_baja = "retirado", d["fecha_baja"]
+    e.motivo_baja = calculos.TIPOS_TERMINACION[d["tipo"]] + (f": {d['motivo']}" if d["motivo"] else "")
+    db.commit()
+    return RedirectResponse(f"/planillas/{p.id}", status_code=303)
+
+
+# ---------------------------------------------------------------- provisiones
+
+
+@app.get("/provisiones", response_class=HTMLResponse)
+def provisiones(request: Request, anio: int = 0, mes: int = 0, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+    hoy = date.today()
+    anio, mes = anio or hoy.year, mes or hoy.month
+    desde, hasta = date(anio, mes, 1), date(anio, mes, monthrange(anio, mes)[1])
+    tasas = tasas_vigentes(db)
+    grupos = []
+    for emp in db.query(Empresa).order_by(Empresa.razon_social).all():
+        filas = []
+        for e in empleados_del_periodo(db, emp.id, desde, hasta):
+            baja = e.fecha_baja if e.estado == "retirado" else None
+            dias = calculos.dias_laborados(e.fecha_ingreso, baja, desde, hasta)
+            if dias <= 0:
+                continue
+            salario_mes = calculos.r2(e.salario_base * dias / calculos.dias_inclusivos(desde, hasta))
+            prov = calculos.provision_mensual(salario_mes)
+            filas.append(dict(e=e, salario=salario_mes, patronal=calculos.cuota_patronal(salario_mes, tasas), **prov))
+        if filas:
+            totales = {k: sum((f[k] for f in filas), Decimal("0")) for k in ("salario", "aguinaldo", "bono14", "vacaciones", "indemnizacion", "patronal")}
+            grupos.append(dict(empresa=emp, filas=filas, totales=totales))
+    return render(request, "provisiones.html", user, grupos=grupos, anio=anio, mes=mes, meses=MESES)

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Planillas · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<h1>Planillas</h1>
+{% if error %}<p class="alerta">{{ error }}</p>{% endif %}
+<form method="post" action="/planillas/nueva" class="tarjeta">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <h2>Generar planilla</h2>
+  <div class="fila-form">
+    <label>Tipo<select name="tipo">{% for k, v in tipos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+    <label>Mes (quincenas)<select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select></label>
+    <label>Año<input type="number" name="anio" value="{{ anio }}" min="2020" max="2100"></label>
+  </div>
+  <p class="sutil">Bono 14 se calcula del 1 de julio al 30 de junio y se paga en julio del año indicado. Aguinaldo, del 1 de diciembre al 30 de noviembre, pagado 100% en diciembre.</p>
+  <div class="checks">
+    {% for p in empresas %}<label class="check"><input type="checkbox" name="empresa_id" value="{{ p.id }}" checked> {{ p.razon_social }}</label>{% endfor %}
+  </div>
+  <div class="acciones"><button class="btn">Generar</button></div>
+</form>
+
+<div class="tabla-scroll">
+<table class="tarjeta">
+  <thead><tr><th>Tipo</th><th>Patrono</th><th>Período</th><th>Pago</th><th class="num">Colaboradores</th><th class="num">Líquido</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for p in lista %}
+    <tr>
+      <td><a href="/planillas/{{ p.id }}">{{ p.nombre_tipo }}</a>{% if p.tipo == 'liquidacion' and p.lineas %}: {{ p.lineas[0].empleado.nombre_completo }}{% endif %}</td>
+      <td>{{ p.empresa.razon_social }}</td>
+      <td>{{ p.desde|fecha }} al {{ p.hasta|fecha }}</td>
+      <td>{{ p.fecha_pago|fecha }}</td>
+      <td class="num">{{ p.lineas|length }}</td>
+      <td class="num">{{ p.total('liquido')|q }}</td>
+      <td><span class="etiqueta {{ 'verde' if p.estado == 'cerrada' else 'ambar' }}">{{ p.estado }}</span></td>
+    </tr>
+  {% else %}<tr><td colspan="7" class="sutil">Todavía no hay planillas.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

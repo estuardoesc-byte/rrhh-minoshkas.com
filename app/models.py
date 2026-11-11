@@ -201,3 +201,71 @@ PARAMETROS_INICIALES = {
     "irtra_pct": ("1.00", "IRTRA (%)"),
     "intecap_pct": ("1.00", "INTECAP (%)"),
 }
+
+
+TIPOS_PLANILLA = {
+    "quincena1": "Primera quincena",
+    "quincena2": "Segunda quincena",
+    "bono14": "Bono 14",
+    "aguinaldo": "Aguinaldo",
+    "liquidacion": "Liquidación",
+}
+
+
+class Planilla(Base):
+    """Una nómina de un patrono para un período. Cerrada = ya no se puede modificar."""
+
+    __tablename__ = "planillas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"))
+    desde: Mapped[date] = mapped_column(Date)
+    hasta: Mapped[date] = mapped_column(Date)
+    fecha_pago: Mapped[date] = mapped_column(Date)
+    estado: Mapped[str] = mapped_column(String(20), default="borrador")
+    notas: Mapped[str] = mapped_column(Text, default="")
+    creada_por: Mapped[str] = mapped_column(String(120))
+    creada: Mapped[datetime] = mapped_column(DateTime, default=ahora)
+    cerrada: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    empresa: Mapped[Empresa] = relationship()
+    lineas: Mapped[list["PlanillaLinea"]] = relationship(
+        back_populates="planilla", cascade="all, delete-orphan", order_by="PlanillaLinea.id"
+    )
+
+    @property
+    def nombre_tipo(self) -> str:
+        return TIPOS_PLANILLA.get(self.tipo, self.tipo)
+
+    def total(self, campo: str) -> Decimal:
+        return sum((getattr(l, campo) or Decimal("0") for l in self.lineas), Decimal("0"))
+
+
+class PlanillaLinea(Base):
+    __tablename__ = "planilla_lineas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    planilla_id: Mapped[int] = mapped_column(ForeignKey("planillas.id"), index=True)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), index=True)
+    sucursal_nombre: Mapped[str] = mapped_column(String(120), default="")
+    salario_base: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    dias: Mapped[int] = mapped_column(Integer, default=0)
+    dias_no_laborados: Mapped[int] = mapped_column(Integer, default=0)
+    salario: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    bonificacion: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    otros_ingresos: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    igss: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    isr: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    otros_descuentos: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    liquido: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    patronal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    detalle: Mapped[str] = mapped_column(Text, default="")  # JSON con conceptos (liquidaciones)
+    firmado: Mapped[bool] = mapped_column(Boolean, default=False)
+    planilla: Mapped[Planilla] = relationship(back_populates="lineas")
+    empleado: Mapped[Empleado] = relationship()
+
+    @property
+    def devengado(self) -> Decimal:
+        return (self.salario or 0) + (self.bonificacion or 0) + (self.otros_ingresos or 0)
+
+    @property
+    def descuentos(self) -> Decimal:
+        return (self.igss or 0) + (self.isr or 0) + (self.otros_descuentos or 0)

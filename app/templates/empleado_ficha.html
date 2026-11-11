@@ -11,7 +11,10 @@
     <p>{{ e.puesto or 'Sin puesto' }} · {{ e.sucursal.nombre if e.sucursal else 'Sin sucursal' }} · <span class="etiqueta {{ 'verde' if e.estado == 'activo' else 'gris' }}">{{ e.estado }}</span></p>
     <p class="sutil">Código {{ e.codigo }} · Patrono: {{ e.empresa.razon_social if e.empresa else 'sin asignar' }}</p>
   </div>
-  <a class="btn" href="/empleados/{{ e.id }}/editar">Editar ficha</a>
+  <div class="acciones-fila">
+    <a class="btn" href="/empleados/{{ e.id }}/editar">Editar ficha</a>
+    {% if e.estado != 'retirado' %}<a class="btn secundario" href="/empleados/{{ e.id }}/liquidacion">Liquidar</a>{% endif %}
+  </div>
 </div>
 
 {% if e.tarjeta_salud_vence and e.tarjeta_salud_vence < hoy %}

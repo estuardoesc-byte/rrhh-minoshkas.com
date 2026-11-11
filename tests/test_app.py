@@ -13,7 +13,10 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.auth import hash_password  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Documento, Empleado, Empresa, Parametro, Sucursal, Usuario  # noqa: E402
+from datetime import date  # noqa: E402
+from decimal import Decimal  # noqa: E402
+
+from app.models import Documento, Empleado, Empresa, Parametro, Planilla, PlanillaLinea, Sucursal, Usuario  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 
@@ -127,7 +130,7 @@ def test_subir_ver_y_eliminar_documento(client):
 
 def test_paginas_principales(client):
     login(client)
-    for url in ["/", "/empleados", "/empresas", "/sucursales", "/parametros", "/empleados/nuevo"]:
+    for url in ["/", "/empleados", "/empresas", "/sucursales", "/parametros", "/empleados/nuevo", "/importar", "/planillas", "/provisiones"]:
         assert client.get(url).status_code == 200, url
 
 
@@ -175,3 +178,64 @@ def test_importar_archivo_equivocado(client):
     token = csrf(client, "/importar")
     r = client.post("/importar", data={"csrf": token}, files={"archivo": ("x.csv", b"a,b\n1,2\n", "text/csv")})
     assert "no parece ser la hoja" in r.text
+
+
+def test_planilla_quincenal_y_cierre(client):
+    login(client)
+    with SessionLocal() as db:
+        emp = db.query(Empresa).filter_by(razon_social="Patrono Prueba").one()
+        e = Empleado(nombres="Quincena", apellidos="Prueba", empresa_id=emp.id, salario_base=Decimal("3816.90"),
+                     bonificacion_incentivo=Decimal("250"), fecha_ingreso=date(2026, 1, 1))
+        db.add(e)
+        db.commit()
+        emp_id, eid = emp.id, e.id
+    token = csrf(client, "/planillas")
+    r = client.post("/planillas/nueva", data={"csrf": token, "tipo": "quincena1", "empresa_id": str(emp_id), "anio": "2026", "mes": "11"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    pid = int(r.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        linea = db.query(PlanillaLinea).filter_by(planilla_id=pid, empleado_id=eid).one()
+        assert linea.salario == Decimal("1908.45") and linea.liquido == Decimal("1941.27")
+        lid = linea.id
+    # duplicado
+    r = client.post("/planillas/nueva", data={"csrf": token, "tipo": "quincena1", "empresa_id": str(emp_id), "anio": "2026", "mes": "11"},
+                    follow_redirects=False)
+    assert "ya+existe" in r.headers["location"]
+    # no cierra sin firmas
+    r = client.post(f"/planillas/{pid}/cerrar", data={"csrf": token}, follow_redirects=False)
+    assert "Faltan" in r.headers["location"]
+    with SessionLocal() as db:
+        otros = [l.id for l in db.get(Planilla, pid).lineas]
+    datos = {"csrf": token, f"dnl_{lid}": "1"}
+    datos.update({f"firmado_{i}": "1" for i in otros})
+    client.post(f"/planillas/{pid}/guardar", data=datos)
+    with SessionLocal() as db:
+        assert db.get(PlanillaLinea, lid).salario == Decimal("1781.22")  # 1908.45 - 127.23
+    client.post(f"/planillas/{pid}/cerrar", data={"csrf": token})
+    with SessionLocal() as db:
+        assert db.get(Planilla, pid).estado == "cerrada"
+    r = client.post(f"/planillas/{pid}/guardar", data={"csrf": token})
+    assert r.status_code == 400
+    assert client.get(f"/provisiones?anio=2026&mes=11").status_code == 200
+
+
+def test_liquidacion_registra_y_retira(client):
+    login(client)
+    with SessionLocal() as db:
+        emp = db.query(Empresa).filter_by(razon_social="Patrono Prueba").one()
+        e = Empleado(nombres="Liquidar", empresa_id=emp.id, salario_base=Decimal("3650"), bonificacion_incentivo=Decimal("250"),
+                     fecha_ingreso=date(2025, 1, 1))
+        db.add(e)
+        db.commit()
+        eid = e.id
+    r = client.get(f"/empleados/{eid}/liquidacion?tipo=despido_injustificado&fecha_baja=2025-12-31&pagado_hasta=2025-12-31&dias_vacaciones=0")
+    assert "Indemnización" in r.text and "4,258.33" in r.text
+    token = csrf(client, f"/empleados/{eid}/liquidacion")
+    r = client.post(f"/empleados/{eid}/liquidacion", data={"csrf": token, "tipo": "despido_injustificado", "fecha_baja": "2025-12-31",
+                    "pagado_hasta": "2025-12-31", "dias_vacaciones": "0"}, follow_redirects=False)
+    assert r.status_code == 303
+    with SessionLocal() as db:
+        e = db.get(Empleado, eid)
+        assert e.estado == "retirado" and e.fecha_baja == date(2025, 12, 31)
+    assert "Indemnización" in client.get(r.headers["location"]).text
