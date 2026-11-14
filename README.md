@@ -25,6 +25,16 @@ El diseño y las reglas de cálculo están en el documento *Sistema de RRHH Mino
 
 Pendiente para el paso 4: recibos imprimibles, nómina gerencial por sucursal y exportación a Excel y PDF.
 
+## Qué agrega el paso 5: nómina flexible (como el archivo Nómina Minoshkas 2026 v4)
+
+- Cada colaborador tiene **salario IGSS** (el que se reporta), **salario real** (lo que se paga) y anticipo fijo opcional. Puede ser **tiempo parcial** con salario bajo el mínimo: ya no bloquea, solo avisa en Inicio.
+- **Ingreso rápido**: en Colaboradores, una tabla para cambiar patrono, sucursal, salarios y estado de todos a la vez, con filas para personal nuevo.
+- Planillas por mes: **Anticipo** (mitad del salario real) y **Fin de mes** (IGSS, descuenta el anticipo) por patrono; **Administrativa 1ra y 2da quincena** con el salario real de varios patronos juntos.
+- Todo es editable: días (por ejemplo 16 por un día doble), cualquier monto calculado, día doble, comisiones, otros ingresos y descuentos con su concepto. Lo escrito a mano se marca y se respeta al recalcular.
+- Se puede generar una planilla vacía, agregar o quitar a cualquier persona (de otro patrono, suspendida o de baja) y reabrir una planilla cerrada con motivo.
+- **Conciliación** del mes: oficial (anticipo + fin de mes) contra real (administrativas), diferencia de cuota IGSS en tiempo parcial, motivo y explicación, con Excel.
+- La base de datos instalada se actualiza sola al arrancar; no se pierden planillas anteriores.
+
 ## Probarlo en una computadora
 
 Requiere Python 3.12 o más reciente.

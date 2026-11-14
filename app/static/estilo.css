@@ -106,3 +106,12 @@ input.mini-num { width: 90px; text-align: right; padding: .25rem .4rem; }
 tfoot td { font-weight: 600; border-top: 2px solid var(--borde); }
 table.conceptos { margin: .2rem 0 .4rem 1rem; width: auto; min-width: 420px; font-size: .9rem; }
 table.conceptos td { border: 0; padding: .15rem .5rem; }
+input.mini-num.manual, .manual-muestra { background: #fff4d6; border-color: #e0a800; }
+.manual-muestra { padding: 0 .3rem; border: 1px solid #e0a800; border-radius: 4px; }
+input.mini-texto { width: 140px; padding: .25rem .4rem; }
+select.mini-sel { max-width: 170px; padding: .2rem; }
+table.planilla td { white-space: nowrap; }
+.dif-neg { color: var(--rojo); }
+.dif-pos { color: var(--verde); }
+tr.fila-nueva td { background: #f7f9fc; }
+.aviso { background: #e3f3ea; border: 1px solid #b7dfc6; padding: .6rem 1rem; border-radius: 8px; }

@@ -9,6 +9,7 @@ from .db import Base
 
 ESTADOS_EMPLEADO = ["activo", "suspendido", "retirado", "inactivo"]
 TIPOS_CONTRATO = ["indefinido", "plazo fijo", "obra determinada"]
+TIEMPOS = ["completo", "parcial"]
 JORNADAS = ["diurna", "mixta", "nocturna"]
 ESTADOS_CIVILES = ["soltero(a)", "casado(a)", "unido(a)", "divorciado(a)", "viudo(a)"]
 TIPOS_DOCUMENTO = [
@@ -114,6 +115,11 @@ class Empleado(Base):
     jornada: Mapped[str] = mapped_column(String(20), default="diurna")
     salario_base: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     bonificacion_incentivo: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("250"))
+    # Salario que de verdad se paga (planilla administrativa). 0 = el mismo salario base.
+    salario_real: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    # Anticipo mensual fijo. 0 = la mitad del salario real.
+    anticipo_fijo: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    tiempo: Mapped[str] = mapped_column(String(20), default="completo")
     vacaciones_previas: Mapped[int] = mapped_column(Integer, default=0)
     estado: Mapped[str] = mapped_column(String(20), default="activo")
     fecha_baja: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -143,6 +149,14 @@ class Empleado(Base):
     @property
     def nombre_completo(self) -> str:
         return f"{self.nombres} {self.apellidos}".strip()
+
+    @property
+    def salario_pagado(self) -> Decimal:
+        return self.salario_real if self.salario_real else (self.salario_base or Decimal("0"))
+
+    @property
+    def anticipo_mensual(self) -> Decimal:
+        return self.anticipo_fijo if self.anticipo_fijo else (self.salario_pagado / 2).quantize(Decimal("0.01"))
 
     @property
     def foto(self) -> "Documento | None":
@@ -204,8 +218,12 @@ PARAMETROS_INICIALES = {
 
 
 TIPOS_PLANILLA = {
-    "quincena1": "Primera quincena",
-    "quincena2": "Segunda quincena",
+    "anticipo": "Anticipo (1ra quincena)",
+    "fin_mes": "Fin de mes",
+    "admin1": "Administrativa 1ra quincena",
+    "admin2": "Administrativa 2da quincena",
+    "quincena1": "Primera quincena (IGSS por quincena)",
+    "quincena2": "Segunda quincena (IGSS por quincena)",
     "bono14": "Bono 14",
     "aguinaldo": "Aguinaldo",
     "liquidacion": "Liquidación",
@@ -218,7 +236,8 @@ class Planilla(Base):
     __tablename__ = "planillas"
     id: Mapped[int] = mapped_column(primary_key=True)
     tipo: Mapped[str] = mapped_column(String(20))
-    empresa_id: Mapped[int] = mapped_column(ForeignKey("empresas.id"))
+    # Vacío en la planilla administrativa, que junta a varios patronos.
+    empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), nullable=True)
     desde: Mapped[date] = mapped_column(Date)
     hasta: Mapped[date] = mapped_column(Date)
     fecha_pago: Mapped[date] = mapped_column(Date)
@@ -227,7 +246,7 @@ class Planilla(Base):
     creada_por: Mapped[str] = mapped_column(String(120))
     creada: Mapped[datetime] = mapped_column(DateTime, default=ahora)
     cerrada: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    empresa: Mapped[Empresa] = relationship()
+    empresa: Mapped[Empresa | None] = relationship()
     lineas: Mapped[list["PlanillaLinea"]] = relationship(
         back_populates="planilla", cascade="all, delete-orphan", order_by="PlanillaLinea.id"
     )
@@ -235,6 +254,13 @@ class Planilla(Base):
     @property
     def nombre_tipo(self) -> str:
         return TIPOS_PLANILLA.get(self.tipo, self.tipo)
+
+    @property
+    def nombre_patrono(self) -> str:
+        if self.empresa:
+            return self.empresa.razon_social
+        nombres = sorted({l.nombre_patrono for l in self.lineas if l.nombre_patrono})
+        return ", ".join(nombres) if nombres else "Todos los patronos"
 
     def total(self, campo: str) -> Decimal:
         return sum((getattr(l, campo) or Decimal("0") for l in self.lineas), Decimal("0"))
@@ -255,20 +281,49 @@ class PlanillaLinea(Base):
     igss: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     isr: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     otros_descuentos: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    anticipo: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    comisiones: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    dia_doble: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    concepto_ingresos: Mapped[str] = mapped_column(String(120), default="")
+    concepto_descuentos: Mapped[str] = mapped_column(String(120), default="")
+    observacion: Mapped[str] = mapped_column(String(250), default="")
+    # Montos escritos a mano que el sistema respeta al recalcular: {"salario": "1800.00", ...}
+    manual: Mapped[str] = mapped_column(Text, default="")
+    # Patrono que paga esta línea (en la administrativa cada persona trae el suyo).
+    empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), nullable=True)
     liquido: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     patronal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
     detalle: Mapped[str] = mapped_column(Text, default="")  # JSON con conceptos (liquidaciones)
     firmado: Mapped[bool] = mapped_column(Boolean, default=False)
     planilla: Mapped[Planilla] = relationship(back_populates="lineas")
     empleado: Mapped[Empleado] = relationship()
+    empresa: Mapped[Empresa | None] = relationship()
+
+    @property
+    def nombre_patrono(self) -> str:
+        if self.empresa:
+            return self.empresa.razon_social
+        return self.planilla.empresa.razon_social if self.planilla and self.planilla.empresa else ""
+
+    @property
+    def patrono(self) -> "Empresa | None":
+        return self.empresa or (self.planilla.empresa if self.planilla else None)
+
+    @property
+    def manuales(self) -> dict:
+        import json
+        try:
+            return json.loads(self.manual) if self.manual else {}
+        except ValueError:
+            return {}
 
     @property
     def devengado(self) -> Decimal:
-        return (self.salario or 0) + (self.bonificacion or 0) + (self.otros_ingresos or 0)
+        return sum((getattr(self, c) or Decimal("0") for c in ("salario", "bonificacion", "otros_ingresos", "comisiones", "dia_doble")), Decimal("0"))
 
     @property
     def descuentos(self) -> Decimal:
-        return (self.igss or 0) + (self.isr or 0) + (self.otros_descuentos or 0)
+        return sum((getattr(self, c) or Decimal("0") for c in ("igss", "isr", "anticipo", "otros_descuentos")), Decimal("0"))
 
 
 class ErpExcluido(Base):
@@ -278,3 +333,30 @@ class ErpExcluido(Base):
     nombre: Mapped[str] = mapped_column(String(200), default="")
     eliminado_por: Mapped[str] = mapped_column(String(120), default="")
     fecha: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+MOTIVOS_AJUSTE = [
+    "Tiempo parcial",
+    "Salario reportado distinto al real",
+    "Días no laborados",
+    "Comisiones o día doble",
+    "Adelantos o descuentos internos",
+    "Ingreso o baja a medio mes",
+    "Suspensión IGSS",
+    "No está en la planilla real",
+    "Otro",
+]
+
+
+class Conciliacion(Base):
+    """Motivo y explicación de la diferencia entre lo reportado al IGSS y lo pagado real en un mes."""
+
+    __tablename__ = "conciliaciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    anio: Mapped[int] = mapped_column(Integer, index=True)
+    mes: Mapped[int] = mapped_column(Integer, index=True)
+    empleado_id: Mapped[int] = mapped_column(ForeignKey("empleados.id"), index=True)
+    motivo: Mapped[str] = mapped_column(String(80), default="")
+    explicacion: Mapped[str] = mapped_column(Text, default="")
+    usuario: Mapped[str] = mapped_column(String(120), default="")
+    actualizado: Mapped[datetime] = mapped_column(DateTime, default=ahora, onupdate=ahora)
