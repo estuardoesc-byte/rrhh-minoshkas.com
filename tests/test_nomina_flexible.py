@@ -243,8 +243,8 @@ def test_montos_con_formato_guatemalteco_y_filtro(client):
     pid = _crear(client, "admin1", [isc, girl], mes=12)
     l = _linea(pid, vanessa)
     token = csrf(client, f"/planillas/{pid}")
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"salario_{l.id}": "Q 1.500,00",
-                                                  f"otros_descuentos_{l.id}": "25,50", f"firmado_{l.id}": "1"})
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"salario_{l.id}": "Q1,500.00",
+                                                  f"otros_descuentos_{l.id}": "25.50", f"firmado_{l.id}": "1"})
     l = _linea(pid, vanessa)
     assert l.salario == D("1500.00") and l.otros_descuentos == D("25.50") and l.firmado
     # Guardar con filtro por patrono no toca a los del otro patrono
@@ -264,10 +264,10 @@ def test_montos_con_formato_guatemalteco_y_filtro(client):
         db.get(Empleado, libni).dpi = "3904306680101"
         db.commit()
     token = csrf(client, f"/empleados/{vanessa}/editar")
-    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "3904306680101", "salario_base": "3.000,00",
+    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "3904306680101", "salario_base": "3,000.00",
                                                          "estado": "activo", "tipo_contrato": "indefinido", "jornada": "diurna", "tiempo": "parcial"})
     assert "Libni Mux" in r.text
-    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "", "salario_base": "3.000,00",
+    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "", "salario_base": "3,000.00",
                                                          "estado": "activo", "tipo_contrato": "indefinido", "jornada": "diurna", "tiempo": "parcial"},
                     follow_redirects=False)
     assert r.status_code == 303

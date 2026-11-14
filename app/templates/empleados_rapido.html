@@ -6,7 +6,7 @@
   {% elif clase == 'tiempo' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}">{% for t in tiempos %}<option value="{{ t }}" {{ 'selected' if v == t }}>{{ t }}</option>{% endfor %}</select>
   {% elif clase == 'estado' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}">{% for t in estados %}<option value="{{ t }}" {{ 'selected' if (v or 'activo') == t }}>{{ t }}</option>{% endfor %}</select>
   {% elif clase == 'fecha' %}<input type="date" name="{{ campo }}_{{ clave }}" value="{{ v.isoformat() if v else '' }}">
-  {% elif clase == 'dinero' %}<input class="mini-num" inputmode="decimal" name="{{ campo }}_{{ clave }}" value="{{ v if v else ('250.00' if not e and campo == 'bonificacion_incentivo' else '') }}">
+  {% elif clase == 'dinero' %}<input class="mini-num" inputmode="decimal" name="{{ campo }}_{{ clave }}" value="{{ v|num if v else ('250.00' if not e and campo == 'bonificacion_incentivo' else '') }}">
   {% else %}<input class="mini-texto" name="{{ campo }}_{{ clave }}" value="{{ v or '' }}">{% endif %}
 {%- endmacro %}
 {% block titulo %}Ingreso rápido · RRHH Minoshkas{% endblock %}

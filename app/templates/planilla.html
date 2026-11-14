@@ -54,7 +54,7 @@
         {% set val = l[c] %}
         <td class="num">
         {% if editable and not liquidacion %}
-          <input class="mini-num {{ 'manual' if c in man }}" name="{{ c }}_{{ l.id }}" value="{{ val if val is not none else 0 }}" inputmode="decimal" title="{{ 'Escrito a mano' if c in man else ('Lo escribe usted' if clase.startswith('dato') else 'Calculado por el sistema; puede escribir encima') }}">
+          <input class="mini-num {{ 'manual' if c in man }}" name="{{ c }}_{{ l.id }}" value="{{ val if clase.endswith('entero') else (val if val is not none else 0)|num }}" inputmode="decimal" title="{{ 'Escrito a mano' if c in man else ('Lo escribe usted' if clase.startswith('dato') else 'Calculado por el sistema; puede escribir encima') }}">
         {% elif clase.endswith('entero') %}{{ val }}{% elif c == 'liquido' %}<strong>{{ val|q }}</strong>{% else %}{{ val|q }}{% endif %}
         </td>
       {% endfor %}

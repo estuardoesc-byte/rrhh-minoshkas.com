@@ -42,10 +42,10 @@
       {{ campo("fecha_fin_contrato", "Fin de contrato (plazo fijo u obra)", e.fecha_fin_contrato, "date") }}
       {{ lista("jornada", "Jornada", jornadas, e.jornada) }}
       {{ lista("tiempo", "Tiempo de trabajo", tiempos, e.tiempo) }}
-      {{ campo("salario_base", "Salario base mensual, el del IGSS (Q)", e.salario_base, "number", 'step="0.01" min="0"') }}
-      {{ campo("salario_real", "Salario real que se paga (Q; vacío = el mismo)", e.salario_real if e.salario_real else '', "number", 'step="0.01" min="0"') }}
-      {{ campo("anticipo_fijo", "Anticipo fijo al mes (Q; vacío = mitad del salario real)", e.anticipo_fijo if e.anticipo_fijo else '', "number", 'step="0.01" min="0"') }}
-      {{ campo("bonificacion_incentivo", "Bonificación incentivo (Q)", e.bonificacion_incentivo, "number", 'step="0.01" min="0"') }}
+      {{ campo("salario_base", "Salario base mensual, el del IGSS (Q)", e.salario_base|num, "text", 'inputmode="decimal"') }}
+      {{ campo("salario_real", "Salario real que se paga (Q; vacío = el mismo)", e.salario_real|num if e.salario_real else '', "text", 'inputmode="decimal"') }}
+      {{ campo("anticipo_fijo", "Anticipo fijo al mes (Q; vacío = mitad del salario real)", e.anticipo_fijo|num if e.anticipo_fijo else '', "text", 'inputmode="decimal"') }}
+      {{ campo("bonificacion_incentivo", "Bonificación incentivo (Q)", e.bonificacion_incentivo|num, "text", 'inputmode="decimal"') }}
       {{ campo("vacaciones_previas", "Días de vacaciones pendientes al ingresar al sistema", e.vacaciones_previas, "number", 'min="0"') }}
       {{ lista("estado", "Estado", estados, e.estado) }}
       {{ campo("fecha_baja", "Fecha de baja", e.fecha_baja, "date") }}

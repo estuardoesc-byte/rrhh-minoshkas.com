@@ -72,22 +72,14 @@ def campos(tipo: str):
 
 
 def normalizar_numero(t: str) -> str:
-    """Acepta "3,000.00", "3.000,00", "3000,50", "3000.50" y "3,000". Devuelve "3000.00"."""
-    if "," in t and "." in t:
-        # El separador que aparece de último es el de decimales.
-        if t.rfind(",") > t.rfind("."):
-            t = t.replace(".", "").replace(",", ".")
-        else:
-            t = t.replace(",", "")
-    elif "," in t:
-        partes = t.split(",")
-        if len(partes) == 2 and len(partes[1]) in (1, 2):
-            t = partes[0] + "." + partes[1]  # coma decimal: 3000,50
-        else:
-            t = t.replace(",", "")  # coma de miles: 3,000
-    elif t.count(".") > 1 or (t.count(".") == 1 and len(t.split(".")[1]) == 3 and len(t.split(".")[0]) <= 3 and t.split(".")[0] != "0"):
-        t = t.replace(".", "")  # punto de miles: 3.000 o 1.000.000
-    return t
+    """Formato de Guatemala: punto para decimales y coma para miles ("3,816.90" -> "3816.90").
+
+    Única excepción: si viene pegado de una hoja con formato europeo ("3.816,90", la coma va de último),
+    también se entiende.
+    """
+    if "," in t and "." in t and t.rfind(",") > t.rfind("."):
+        return t.replace(".", "").replace(",", ".")
+    return t.replace(",", "")
 
 
 def valor_numerico(texto, entero: bool = False):

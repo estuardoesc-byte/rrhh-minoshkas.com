@@ -70,7 +70,16 @@ def fecha_gt(valor) -> str:
     return valor.strftime("%d/%m/%Y") if valor else ""
 
 
+def numero_gt(valor) -> str:
+    """Monto para escribir en una casilla, con coma de miles y punto decimal: 3,816.90."""
+    try:
+        return f"{Decimal(valor):,.2f}"
+    except (InvalidOperation, TypeError):
+        return ""
+
+
 templates.env.filters["q"] = quetzales
+templates.env.filters["num"] = numero_gt
 templates.env.filters["fecha"] = fecha_gt
 
 
