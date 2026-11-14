@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% macro celda(e, clave, campo, clase) -%}
+  {% set v = e[campo] if e else none %}
+  {% if clase == 'patrono' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}"><option value=""></option>{% for p in empresas %}<option value="{{ p.id }}" {{ 'selected' if v == p.id }}>{{ p.razon_social }}</option>{% endfor %}</select>
+  {% elif clase == 'sucursal' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}"><option value=""></option>{% for s in sucursales %}<option value="{{ s.id }}" {{ 'selected' if v == s.id }}>{{ s.nombre }}</option>{% endfor %}</select>
+  {% elif clase == 'tiempo' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}">{% for t in tiempos %}<option value="{{ t }}" {{ 'selected' if v == t }}>{{ t }}</option>{% endfor %}</select>
+  {% elif clase == 'estado' %}<select class="mini-sel" name="{{ campo }}_{{ clave }}">{% for t in estados %}<option value="{{ t }}" {{ 'selected' if (v or 'activo') == t }}>{{ t }}</option>{% endfor %}</select>
+  {% elif clase == 'fecha' %}<input type="date" name="{{ campo }}_{{ clave }}" value="{{ v.isoformat() if v else '' }}">
+  {% elif clase == 'dinero' %}<input class="mini-num" inputmode="decimal" name="{{ campo }}_{{ clave }}" value="{{ v if v else ('250.00' if not e and campo == 'bonificacion_incentivo' else '') }}">
+  {% else %}<input class="mini-texto" name="{{ campo }}_{{ clave }}" value="{{ v or '' }}">{% endif %}
+{%- endmacro %}
+{% block titulo %}Ingreso rápido · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div>
+    <h1>Ingreso rápido del personal</h1>
+    <p class="sutil">Cambie lo que necesite en la tabla y guarde una sola vez. Al final hay filas vacías para personal nuevo. Los demás datos (contactos, documentos, tarjeta de salud) se completan después en la ficha.</p>
+  </div>
+  <a class="btn secundario" href="/empleados">Volver a colaboradores</a>
+</div>
+{% if aviso %}<p class="aviso">{{ aviso }}</p>{% endif %}
+{% if errores %}<div class="alerta"><ul>{% for x in errores %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+<p class="sutil"><strong>Salario IGSS</strong> es el que se reporta y sale en el fin de mes; puede ser menor al mínimo si es tiempo parcial. <strong>Salario real</strong> es lo que de verdad se paga en la administrativa (vacío = el mismo). <strong>Anticipo fijo</strong> vacío = mitad del salario real.</p>
+<form method="post" action="/empleados/rapido">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="tabla-scroll tarjeta">
+<table class="planilla">
+  <thead><tr>{% for c, etq, clase in campos %}<th>{{ etq }}</th>{% endfor %}<th></th></tr></thead>
+  <tbody>
+  {% for e in lista %}
+    <tr>{% for c, etq, clase in campos %}<td>{{ celda(e, e.id, c, clase) }}</td>{% endfor %}<td><a class="sutil" href="/empleados/{{ e.id }}">ficha</a></td></tr>
+  {% endfor %}
+  {% for n in nuevas %}
+    <tr class="fila-nueva">{% for c, etq, clase in campos %}<td>{{ celda(none, 'n' ~ n, c, clase) }}</td>{% endfor %}<td class="sutil">nuevo</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="acciones"><button class="btn">Guardar todo</button></div>
+</form>
+{% endblock %}

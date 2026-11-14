@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Conciliación · RRHH Minoshkas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div>
+    <h1>Conciliación: nómina IGSS contra lo pagado real</h1>
+    <p class="sutil">{{ meses[mes - 1]|capitalize }} {{ anio }} · Oficial = anticipo + fin de mes. Real = planillas administrativas. Anote el motivo de cada diferencia.</p>
+  </div>
+  <form method="get" class="acciones-fila">
+    <select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select>
+    <input type="number" name="anio" value="{{ anio }}" min="2020" max="2100" style="width:6rem">
+    <button class="btn secundario">Ver</button>
+    <a class="btn secundario" href="/conciliacion/excel?anio={{ anio }}&mes={{ mes }}">Excel</a>
+  </form>
+</div>
+
+{% if resumen %}
+<div class="tabla-scroll">
+<table class="tarjeta">
+  <thead><tr><th>Patrono</th><th class="num">Pagado oficial</th><th class="num">Pagado real</th><th class="num">Diferencia</th><th class="num">Dif. de cuota IGSS</th></tr></thead>
+  <tbody>
+  {% for nombre, r in resumen %}
+    <tr><td>{{ nombre }}</td><td class="num">{{ r.oficial|q }}</td><td class="num">{{ r.real|q }}</td>
+      <td class="num {{ 'dif-neg' if r.diferencia < 0 else ('dif-pos' if r.diferencia > 0) }}">{{ r.diferencia|q }}</td><td class="num">{{ r.dif_cuota|q }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="sutil">Diferencia positiva: se pagó más de lo reportado al IGSS. Negativa: lo reportado es mayor que lo pagado. En tiempo parcial la base del IGSS es el salario mínimo ({{ minimo|q }}) cuando lo devengado es menor; esa diferencia de cuota la cubre el patrono. El salario mínimo se cambia en <a href="/parametros">Parámetros</a>.</p>
+{% endif %}
+
+<form method="post" action="/conciliacion">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="anio" value="{{ anio }}"><input type="hidden" name="mes" value="{{ mes }}">
+<div class="tabla-scroll tarjeta">
+<table class="planilla">
+  <thead><tr>
+    <th>Colaborador</th><th>Patrono</th><th>Sucursal</th><th>Tiempo</th>
+    <th class="num">Salario reportado IGSS</th><th class="num">Bonificación oficial</th><th class="num">IGSS descontado</th>
+    <th class="num">Pagado oficial</th><th class="num">Pagado real</th><th class="num">Diferencia</th>
+    <th class="num">Base IGSS</th><th class="num">Cuota mínima</th><th class="num">Dif. de cuota</th>
+    <th>Motivo</th><th>Explicación</th>
+  </tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr>
+      <td><a href="/empleados/{{ f.e.id }}">{{ f.e.nombre_completo }}</a></td>
+      <td>{{ f.patrono }}</td><td>{{ f.sucursal }}</td><td>{{ f.e.tiempo or 'completo' }}</td>
+      <td class="num">{{ f.salario_igss|q }}</td><td class="num">{{ f.bonificacion|q }}</td><td class="num">{{ f.igss|q }}</td>
+      <td class="num">{{ f.oficial|q if f.hay_oficial else '—' }}</td><td class="num">{{ f.real|q if f.hay_real else '—' }}</td>
+      <td class="num {{ 'dif-neg' if f.diferencia < 0 else ('dif-pos' if f.diferencia > 0) }}"><strong>{{ f.diferencia|q }}</strong></td>
+      <td class="num">{{ f.base_igss|q }}</td><td class="num">{{ f.cuota_minima|q }}</td><td class="num">{{ f.dif_cuota|q }}</td>
+      <td><select name="motivo_{{ f.e.id }}" class="mini-sel"><option value=""></option>{% for m in motivos %}<option {{ 'selected' if f.nota and f.nota.motivo == m }}>{{ m }}</option>{% endfor %}</select></td>
+      <td><input class="mini-texto" style="width:220px" name="explicacion_{{ f.e.id }}" value="{{ f.nota.explicacion if f.nota else '' }}"></td>
+    </tr>
+  {% else %}<tr><td colspan="15" class="sutil">No hay planillas de anticipo, fin de mes ni administrativas en este mes.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% if filas %}<div class="acciones"><button class="btn">Guardar motivos</button></div>{% endif %}
+</form>
+{% endblock %}

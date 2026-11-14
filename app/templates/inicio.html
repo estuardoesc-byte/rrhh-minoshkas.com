@@ -59,6 +59,7 @@
 {% if bajo_minimo %}
 <section class="tarjeta">
   <h2>Salario menor al mínimo</h2>
+  <p class="sutil">Si la persona trabaja a tiempo parcial, márquelo en su ficha y deja de salir aquí.</p>
   <table><tbody>
   {% for e in bajo_minimo %}<tr><td><a href="/empleados/{{ e.id }}">{{ e.nombre_completo }}</a></td><td>{{ e.jornada }}</td><td class="num">{{ e.salario_base|q }}</td></tr>{% endfor %}
   </tbody></table>

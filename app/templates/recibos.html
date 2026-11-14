@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Recibos · {{ p.nombre_tipo }} · {{ p.empresa.razon_social }}</title>
+<title>Recibos · {{ p.nombre_tipo }} · {{ p.nombre_patrono }}</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #222; margin: 0; background: #f2f0ef; font-size: 12.5px; }
@@ -45,8 +45,9 @@
 <section class="hoja">
   <div class="cab">
     <div>
-      <h1>{{ p.empresa.razon_social }}</h1>
-      <p>{{ p.empresa.nombre_comercial }}{% if p.empresa.nit %} · NIT {{ p.empresa.nit }}{% endif %}{% if p.empresa.numero_patronal_igss %} · Patronal IGSS {{ p.empresa.numero_patronal_igss }}{% endif %}</p>
+      {% set em = l.patrono %}
+      <h1>{{ em.razon_social if em else 'Minoshkas Salón' }}</h1>
+      {% if em %}<p>{{ em.nombre_comercial }}{% if em.nit %} · NIT {{ em.nit }}{% endif %}{% if em.numero_patronal_igss %} · Patronal IGSS {{ em.numero_patronal_igss }}{% endif %}</p>{% endif %}
     </div>
     <div style="text-align:right">
       <h1>Recibo de pago · {{ p.nombre_tipo }}</h1>
@@ -68,29 +69,20 @@
     <tbody>{% for nombre, valor in conceptos[l.id] %}<tr><td>{{ nombre }}</td><td class="n">{{ valor|q }}</td></tr>{% endfor %}</tbody>
   </table>
   {% else %}
+  {% set ing, desc, tot_ing, tot_desc = filas[l.id] %}
   <div class="cols">
     <table>
       <thead><tr><th>Ingresos</th><th class="n">Monto</th></tr></thead>
       <tbody>
-        {% if p.tipo in ('quincena1', 'quincena2') %}
-        <tr><td>Salario ({{ l.dias }} días{% if l.dias_no_laborados %}, {{ l.dias_no_laborados }} no laborados{% endif %})</td><td class="n">{{ l.salario|q }}</td></tr>
-        <tr><td>Bonificación incentivo (Decreto 37-2001)</td><td class="n">{{ l.bonificacion|q }}</td></tr>
-        {% else %}
-        <tr><td>{{ p.nombre_tipo }} ({{ l.dias }} días)</td><td class="n">{{ l.salario|q }}</td></tr>
-        {% endif %}
-        {% if l.otros_ingresos %}<tr><td>Otros ingresos</td><td class="n">{{ l.otros_ingresos|q }}</td></tr>{% endif %}
-        <tr class="t"><td>Total ingresos</td><td class="n">{{ l.devengado|q }}</td></tr>
+        {% for n, v in ing %}<tr><td>{{ n }}</td><td class="n">{{ v|q }}</td></tr>{% endfor %}
+        <tr class="t"><td>Total ingresos</td><td class="n">{{ tot_ing|q }}</td></tr>
       </tbody>
     </table>
     <table>
       <thead><tr><th>Descuentos</th><th class="n">Monto</th></tr></thead>
       <tbody>
-        {% if p.tipo in ('quincena1', 'quincena2') %}
-        <tr><td>IGSS laboral</td><td class="n">{{ l.igss|q }}</td></tr>
-        {% if l.isr %}<tr><td>ISR</td><td class="n">{{ l.isr|q }}</td></tr>{% endif %}
-        {% endif %}
-        {% if l.otros_descuentos %}<tr><td>Otros descuentos</td><td class="n">{{ l.otros_descuentos|q }}</td></tr>{% endif %}
-        <tr class="t"><td>Total descuentos</td><td class="n">{{ l.descuentos|q }}</td></tr>
+        {% for n, v in desc %}<tr><td>{{ n }}</td><td class="n">{{ v|q }}</td></tr>{% endfor %}
+        <tr class="t"><td>Total descuentos</td><td class="n">{{ tot_desc|q }}</td></tr>
       </tbody>
     </table>
   </div>
@@ -103,7 +95,7 @@
     <div>Firma del colaborador<br>{{ l.empleado.nombre_completo }}</div>
     <div>Entregado por</div>
   </div>
-  {% if p.notas %}<p class="nota">{{ p.notas }}</p>{% endif %}
+  {% if l.observacion %}<p class="nota">{{ l.observacion }}</p>{% endif %}
 </section>
 {% endfor %}
 </body>

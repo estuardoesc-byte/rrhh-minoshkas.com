@@ -46,7 +46,7 @@
     <h2>Datos laborales</h2>
     <div class="datos">
       {{ dato("Ingreso", e.fecha_ingreso|fecha) }}{{ dato("Contrato", e.tipo_contrato) }}{{ dato("Fin de contrato", e.fecha_fin_contrato|fecha) }}
-      {{ dato("Jornada", e.jornada) }}{{ dato("Salario base", e.salario_base|q) }}{{ dato("Bonificación incentivo", e.bonificacion_incentivo|q) }}
+      {{ dato("Jornada", e.jornada) }}{{ dato("Tiempo", e.tiempo or 'completo') }}{{ dato("Salario base", e.salario_base|q) }}{{ dato("Salario real", e.salario_pagado|q) }}{{ dato("Anticipo mensual", e.anticipo_mensual|q) }}{{ dato("Bonificación incentivo", e.bonificacion_incentivo|q) }}
       {{ dato("Vacaciones pendientes al ingreso", e.vacaciones_previas) }}{{ dato("Fecha de baja", e.fecha_baja|fecha) }}{{ dato("Motivo de baja", e.motivo_baja) }}
     </div>
   </section>

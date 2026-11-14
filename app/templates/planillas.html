@@ -11,10 +11,12 @@
     <label>Mes (quincenas)<select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select></label>
     <label>Año<input type="number" name="anio" value="{{ anio }}" min="2020" max="2100"></label>
   </div>
-  <p class="sutil">Bono 14 se calcula del 1 de julio al 30 de junio y se paga en julio del año indicado. Aguinaldo, del 1 de diciembre al 30 de noviembre, pagado 100% en diciembre.</p>
+  <p class="sutil">Orden de cada mes: primero el <strong>anticipo</strong> (mitad del salario real), luego el <strong>fin de mes</strong> (planilla del IGSS, descuenta el anticipo) y las dos <strong>administrativas</strong> (lo que de verdad se paga, con todos los patronos juntos). Al final revise la <a href="/conciliacion">conciliación</a>.</p>
+  <p class="sutil">Anticipo y fin de mes salen una por patrono. La administrativa sale una sola con los patronos que marque. Bono 14 va del 1 de julio al 30 de junio y se paga en julio del año indicado; aguinaldo, del 1 de diciembre al 30 de noviembre.</p>
   <div class="checks">
     {% for p in empresas %}<label class="check"><input type="checkbox" name="empresa_id" value="{{ p.id }}" checked> {{ p.razon_social }}</label>{% endfor %}
   </div>
+  <label class="check"><input type="checkbox" name="vacia" value="1"> Generarla vacía para escoger yo a cada persona</label>
   <div class="acciones"><button class="btn">Generar</button></div>
 </form>
 
@@ -25,7 +27,7 @@
   {% for p in lista %}
     <tr>
       <td><a href="/planillas/{{ p.id }}">{{ p.nombre_tipo }}</a>{% if p.tipo == 'liquidacion' and p.lineas %}: {{ p.lineas[0].empleado.nombre_completo }}{% endif %}</td>
-      <td>{{ p.empresa.razon_social }}</td>
+      <td>{{ p.nombre_patrono }}</td>
       <td>{{ p.desde|fecha }} al {{ p.hasta|fecha }}</td>
       <td>{{ p.fecha_pago|fecha }}</td>
       <td class="num">{{ p.lineas|length }}</td>

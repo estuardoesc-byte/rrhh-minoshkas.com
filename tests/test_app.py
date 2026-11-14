@@ -68,8 +68,10 @@ def test_validaciones(client):
     with SessionLocal() as db:
         db.get(Parametro, "salario_minimo_no_agricola_c2").valor = "3800.00"
         db.commit()
-    r = _nuevo(client, dpi="", nombres="Beto", salario_base="2000")
-    assert "menor al salario mínimo" in r.text
+    # Bajo el mínimo ya no bloquea (tiempo parcial); solo se avisa en Inicio.
+    r = _nuevo(client, dpi="", nombres="Beto", salario_base="2000", tiempo="completo")
+    assert r.status_code == 303
+    assert "Beto" in client.get("/").text
 
 
 def test_subir_ver_y_eliminar_documento(client):
@@ -175,7 +177,7 @@ def test_planilla_quincenal_y_cierre(client):
     assert "Faltan" in r.headers["location"]
     with SessionLocal() as db:
         otros = [l.id for l in db.get(Planilla, pid).lineas]
-    datos = {"csrf": token, f"dnl_{lid}": "1"}
+    datos = {"csrf": token, f"dias_no_laborados_{lid}": "1"}
     datos.update({f"firmado_{i}": "1" for i in otros})
     client.post(f"/planillas/{pid}/guardar", data=datos)
     with SessionLocal() as db:
