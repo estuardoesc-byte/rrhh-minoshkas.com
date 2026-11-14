@@ -248,11 +248,11 @@ def _leer_empleado(form, db: Session) -> tuple[dict, list[str]]:
             errores.append(f"Fecha inválida en {c.replace('_', ' ')}.")
             datos[c] = None
     for c in CAMPOS_DINERO:
-        v = (form.get(c) or "0").replace(",", "").replace("Q", "").strip() or "0"
         try:
-            datos[c] = Decimal(v).quantize(Decimal("0.01"))
-            if datos[c] < 0:
+            v = nomina.valor_numerico(form.get(c))
+            if v is None or v < 0:
                 raise InvalidOperation
+            datos[c] = v
         except InvalidOperation:
             errores.append(f"Monto inválido en {c.replace('_', ' ')}.")
             datos[c] = Decimal("0")
@@ -344,8 +344,18 @@ CAMPOS_RAPIDO = [
 
 @app.get("/empleados/rapido", response_class=HTMLResponse)
 def empleados_rapido(request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
-    lista = db.query(Empleado).filter(Empleado.estado != "inactivo").order_by(Empleado.nombres, Empleado.apellidos).all()
+    consulta = db.query(Empleado)
+    todos = request.query_params.get("todos") == "1"
+    if not todos:
+        consulta = consulta.filter(Empleado.estado != "inactivo")
+    f_patrono = request.query_params.get("patrono", "")
+    if f_patrono.isdigit():
+        consulta = consulta.filter(Empleado.empresa_id == int(f_patrono))
+    elif f_patrono == "sin":
+        consulta = consulta.filter(Empleado.empresa_id.is_(None))
+    lista = consulta.order_by(Empleado.nombres, Empleado.apellidos).all()
     return render(request, "empleados_rapido.html", user, lista=lista, campos=CAMPOS_RAPIDO, nuevas=range(1, 6),
+                  f_patrono=f_patrono, todos=todos,
                   errores=request.query_params.getlist("error"), aviso=request.query_params.get("aviso", ""), **_opciones(db))
 
 
@@ -370,7 +380,7 @@ async def empleados_rapido_guardar(request: Request, db: Session = Depends(get_d
     """Guarda toda la tabla de una vez: cambios a los existentes y filas nuevas."""
     form = await form_con_csrf(request)
     errores, cambios, altas = [], 0, 0
-    filas = [("e", e) for e in db.query(Empleado).filter(Empleado.estado != "inactivo").all()]
+    filas = [("e", e) for e in db.query(Empleado).all()]
     filas += [("n", n) for n in range(1, 6)]
     for marca, obj in filas:
         clave = f"{obj.id}" if marca == "e" else f"n{obj}"
@@ -394,7 +404,8 @@ async def empleados_rapido_guardar(request: Request, db: Session = Depends(get_d
             continue
         otro = db.query(Empleado).filter(Empleado.dpi == datos["dpi"]).first() if datos["dpi"] else None
         if otro and (marca == "n" or otro.id != obj.id):
-            errores.append(f"{nombre}: ya existe un colaborador con ese DPI.")
+            errores.append(f"{nombre}: el DPI {datos['dpi']} ya lo tiene {otro.nombre_completo} (código {otro.codigo}, estado {otro.estado}). "
+                           "Corrija esa ficha o deje el DPI vacío; no se guardó esta fila.")
             continue
         if datos["tiempo"] not in TIEMPOS:
             datos["tiempo"] = "completo"
@@ -425,6 +436,9 @@ async def empleados_rapido_guardar(request: Request, db: Session = Depends(get_d
     db.commit()
     from urllib.parse import urlencode
     q = [("aviso", f"Guardado: {cambios} cambio(s), {altas} colaborador(es) nuevo(s).")] + [("error", x) for x in errores]
+    for k in ("patrono", "todos"):
+        if form.get(f"f_{k}"):
+            q.append((k, form.get(f"f_{k}")))
     return RedirectResponse("/empleados/rapido?" + urlencode(q), status_code=303)
 
 
@@ -441,8 +455,9 @@ def empleado_nuevo(request: Request, db: Session = Depends(get_db), user: Usuari
 async def empleado_crear(request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
     form = await form_con_csrf(request)
     datos, errores = _leer_empleado(form, db)
-    if datos["dpi"] and db.query(Empleado).filter(Empleado.dpi == datos["dpi"]).first():
-        errores.append("Ya existe un colaborador con ese DPI.")
+    otro = db.query(Empleado).filter(Empleado.dpi == datos["dpi"]).first() if datos["dpi"] else None
+    if otro:
+        errores.append(f"Ya existe un colaborador con ese DPI: {otro.nombre_completo} (código {otro.codigo}, estado {otro.estado}).")
     if errores:
         return render(request, "empleado_form.html", user, e=Empleado(**datos), nuevo=True, errores=errores, **_opciones(db))
     e = Empleado(**datos)
@@ -480,8 +495,10 @@ async def empleado_editar(eid: int, request: Request, db: Session = Depends(get_
     e = _empleado_o_404(db, eid)
     form = await form_con_csrf(request)
     datos, errores = _leer_empleado(form, db)
-    if datos["dpi"] and db.query(Empleado).filter(Empleado.dpi == datos["dpi"], Empleado.id != e.id).first():
-        errores.append("Ya existe otro colaborador con ese DPI.")
+    otro = db.query(Empleado).filter(Empleado.dpi == datos["dpi"], Empleado.id != e.id).first() if datos["dpi"] else None
+    if otro:
+        errores.append(f"Ese DPI ya lo tiene {otro.nombre_completo} (código {otro.codigo}, estado {otro.estado}). "
+                       "Puede ser un registro repetido: revise esa ficha y elimine el que sobra.")
     if errores:
         borrador = Empleado(**datos)
         borrador.id = e.id
@@ -750,10 +767,8 @@ def tasas_vigentes(db: Session) -> calculos.Tasas:
 
 
 def _decimal(valor, defecto=Decimal("0")) -> Decimal:
-    try:
-        return Decimal(str(valor or "0").replace(",", "").replace("Q", "").strip() or "0")
-    except InvalidOperation:
-        return defecto
+    v = nomina.valor_numerico(valor)
+    return defecto if v is None else v
 
 
 def _entero_form(valor) -> int:
@@ -849,10 +864,14 @@ TIPOS_A_GENERAR = ("anticipo", "fin_mes", "admin1", "admin2", "bono14", "aguinal
 
 @app.get("/planillas", response_class=HTMLResponse)
 def planillas(request: Request, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
-    lista = db.query(Planilla).order_by(Planilla.fecha_pago.desc(), Planilla.id.desc()).limit(200).all()
+    lista = db.query(Planilla).order_by(Planilla.fecha_pago.desc(), Planilla.id.desc()).limit(300).all()
+    f_patrono = request.query_params.get("patrono", "")
+    if f_patrono.isdigit():
+        pid_ = int(f_patrono)
+        lista = [p for p in lista if p.empresa_id == pid_ or (p.empresa_id is None and any(l.patrono and l.patrono.id == pid_ for l in p.lineas))]
     hoy = date.today()
     return render(
-        request, "planillas.html", user, lista=lista, tipos={k: TIPOS_PLANILLA[k] for k in TIPOS_A_GENERAR},
+        request, "planillas.html", user, lista=lista, f_patrono=f_patrono, tipos={k: TIPOS_PLANILLA[k] for k in TIPOS_A_GENERAR},
         empresas=db.query(Empresa).filter(Empresa.activa).order_by(Empresa.razon_social).all(),
         meses=MESES, anio=hoy.year, mes=hoy.month, error=request.query_params.get("error"),
     )
@@ -922,7 +941,16 @@ def planilla_ver(pid: int, request: Request, db: Session = Depends(get_db), user
     conceptos = {l.id: json.loads(l.detalle) for l in p.lineas if l.detalle}
     dentro = {l.empleado_id for l in p.lineas}
     disponibles = [e for e in db.query(Empleado).order_by(Empleado.nombres, Empleado.apellidos).all() if e.id not in dentro]
-    return render(request, "planilla.html", user, p=p, conceptos=conceptos, campos=nomina.campos(p.tipo),
+    f_patrono = request.query_params.get("patrono", "")
+    lineas = p.lineas
+    if f_patrono.isdigit():
+        lineas = [l for l in p.lineas if l.patrono and l.patrono.id == int(f_patrono)]
+    patronos_en = sorted({(l.patrono.id, l.patrono.razon_social) for l in p.lineas if l.patrono}, key=lambda x: x[1])
+    totales = {c: sum((getattr(l, c) or Decimal(0) for l in lineas), Decimal(0)) for c in
+               ("dias", "salario", "bonificacion", "dia_doble", "comisiones", "otros_ingresos", "igss", "isr", "anticipo",
+                "otros_descuentos", "liquido", "patronal", "dias_no_laborados")}
+    return render(request, "planilla.html", user, p=p, lineas=lineas, totales=totales, f_patrono=f_patrono, patronos_en=patronos_en,
+                  conceptos=conceptos, campos=nomina.campos(p.tipo),
                   disponibles=disponibles, administrativa=p.tipo in nomina.ADMINISTRATIVAS,
                   empresas=db.query(Empresa).order_by(Empresa.razon_social).all(), error=request.query_params.get("error"))
 
@@ -963,6 +991,8 @@ async def planilla_guardar(pid: int, request: Request, db: Session = Depends(get
     _editable_o_400(p)
     tasas = tasas_vigentes(db)
     for linea in p.lineas:
+        if form.get(f"linea_{linea.id}") != "1":
+            continue  # no estaba en pantalla (filtro por patrono): no se toca
         _guardar_linea(linea, p, form, tasas, db)
         linea.firmado = form.get(f"firmado_{linea.id}") == "1"
     p.notas = (form.get("notas") or "").strip()
@@ -972,7 +1002,8 @@ async def planilla_guardar(pid: int, request: Request, db: Session = Depends(get
     except ValueError:
         pass
     db.commit()
-    return RedirectResponse(f"/planillas/{p.id}", status_code=303)
+    volver = form.get("volver_patrono") or ""
+    return RedirectResponse(f"/planillas/{p.id}" + (f"?patrono={volver}" if volver.isdigit() else ""), status_code=303)
 
 
 @app.post("/planillas/{pid}/agregar")
@@ -1382,11 +1413,13 @@ def _datos_conciliacion(db: Session, anio: int, mes: int) -> dict:
 
 
 @app.get("/conciliacion", response_class=HTMLResponse)
-def conciliacion(request: Request, anio: int = 0, mes: int = 0, db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
+def conciliacion(request: Request, anio: int = 0, mes: int = 0, patrono: str = "", db: Session = Depends(get_db), user: Usuario = Depends(requiere_usuario)):
     hoy = date.today()
     anio, mes = anio or hoy.year, mes or hoy.month
-    return render(request, "conciliacion.html", user, anio=anio, mes=mes, meses=MESES, motivos=MOTIVOS_AJUSTE,
-                  **_datos_conciliacion(db, anio, mes))
+    d = _datos_conciliacion(db, anio, mes)
+    if patrono:
+        d["filas"] = [f for f in d["filas"] if f["patrono"] == patrono]
+    return render(request, "conciliacion.html", user, anio=anio, mes=mes, meses=MESES, motivos=MOTIVOS_AJUSTE, f_patrono=patrono, **d)
 
 
 @app.post("/conciliacion")

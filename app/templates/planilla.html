@@ -17,6 +17,14 @@
 </div>
 {% if error %}<p class="alerta">{{ error }}</p>{% endif %}
 {% if p.notas %}<p class="sutil" style="white-space:pre-line">{{ p.notas }}</p>{% endif %}
+{% if patronos_en|length > 1 %}
+<div class="filtros-patrono">
+  <span class="sutil">Ver patrono:</span>
+  <a class="btn {{ 'secundario' if f_patrono }}" href="/planillas/{{ p.id }}">Todos</a>
+  {% for pid_, nombre in patronos_en %}<a class="btn {{ 'secundario' if f_patrono != pid_|string }}" href="/planillas/{{ p.id }}?patrono={{ pid_ }}">{{ nombre }}</a>{% endfor %}
+  {% if f_patrono %}<a class="btn-link" href="/planillas/{{ p.id }}/recibos?patrono={{ f_patrono }}" target="_blank" rel="noopener">Recibos solo de este patrono</a>{% endif %}
+</div>
+{% endif %}
 
 {% if editable and not liquidacion %}
 <p class="sutil">Puede escribir encima de cualquier monto o de los días. Lo que escriba a mano queda <span class="manual-muestra">marcado</span> y el sistema lo respeta al recalcular; los totales que dependen de él se recalculan solos. Para volver al cálculo del sistema marque «Restablecer» en esa fila.
@@ -25,6 +33,7 @@
 
 <form method="post" action="/planillas/{{ p.id }}/guardar" id="planilla">
 <input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="volver_patrono" value="{{ f_patrono }}">
 <div class="tabla-scroll tarjeta">
 <table class="planilla">
   <thead><tr>
@@ -34,10 +43,10 @@
     <th>Firmado</th>{% if editable and not liquidacion %}<th>Restablecer</th><th></th>{% endif %}
   </tr></thead>
   <tbody>
-  {% for l in p.lineas %}
+  {% for l in lineas %}
     {% set man = l.manuales %}
     <tr>
-      <td><a href="/empleados/{{ l.empleado_id }}">{{ l.empleado.nombre_completo }}</a> <a class="sutil" href="/planillas/{{ p.id }}/recibos?linea={{ l.id }}" target="_blank" rel="noopener">recibo</a>
+      <td><input type="hidden" name="linea_{{ l.id }}" value="1"><a href="/empleados/{{ l.empleado_id }}">{{ l.empleado.nombre_completo }}</a> <a class="sutil" href="/planillas/{{ p.id }}/recibos?linea={{ l.id }}" target="_blank" rel="noopener">recibo</a>
         {% if l.empleado.tiempo == 'parcial' %}<span class="etiqueta">parcial</span>{% endif %}</td>
       {% if administrativa %}<td>{% if editable %}<select name="empresa_{{ l.id }}" class="mini-sel">{% for em in empresas %}<option value="{{ em.id }}" {{ 'selected' if l.empresa_id == em.id }}>{{ em.razon_social }}</option>{% endfor %}</select>{% else %}{{ l.nombre_patrono }}{% endif %}</td>{% endif %}
       <td>{{ l.sucursal_nombre }}</td>
@@ -69,16 +78,16 @@
     {% endif %}
   {% else %}<tr><td colspan="20" class="sutil">Esta planilla todavía no tiene colaboradores. Agréguelos abajo.</td></tr>{% endfor %}
   </tbody>
-  {% if p.lineas %}
+  {% if lineas %}
   <tfoot><tr>
-    <td colspan="{{ 3 if administrativa else 2 }}">Totales ({{ p.lineas|length }})</td>
-    {% for c, etq, clase in campos %}<td class="num">{% if not clase.endswith('entero') %}{{ p.total(c)|q }}{% endif %}</td>{% endfor %}
+    <td colspan="{{ 3 if administrativa else 2 }}">Totales ({{ lineas|length }})</td>
+    {% for c, etq, clase in campos %}<td class="num">{% if not clase.endswith('entero') %}{{ totales[c]|q }}{% endif %}</td>{% endfor %}
     <td colspan="8"></td>
   </tr></tfoot>
   {% endif %}
 </table>
-{% if p.tipo == 'fin_mes' %}<p class="sutil">Cuota patronal estimada (IGSS, IRTRA e INTECAP): {{ p.total('patronal')|q }}. IGSS laboral: {{ p.total('igss')|q }}. Total a pagar al IGSS: {{ (p.total('patronal') + p.total('igss'))|q }}.</p>{% endif %}
-<p class="sutil">Efectivo a preparar: {{ p.total('liquido')|q }}.</p>
+{% if p.tipo == 'fin_mes' %}<p class="sutil">Cuota patronal estimada (IGSS, IRTRA e INTECAP): {{ totales.patronal|q }}. IGSS laboral: {{ totales.igss|q }}. Total a pagar al IGSS: {{ (totales.patronal + totales.igss)|q }}.</p>{% endif %}
+<p class="sutil">Efectivo a preparar: {{ totales.liquido|q }}.</p>
 </div>
 {% if editable %}
 <div class="fila-form">
@@ -89,7 +98,7 @@
 {% endif %}
 </form>
 {% if editable and not liquidacion %}
-{% for l in p.lineas %}<form id="quitar-{{ l.id }}" method="post" action="/planillas/{{ p.id }}/lineas/{{ l.id }}/quitar" onsubmit="return confirm('¿Quitar a {{ l.empleado.nombre_completo }} de esta planilla?')"><input type="hidden" name="csrf" value="{{ csrf }}"></form>{% endfor %}
+{% for l in lineas %}<form id="quitar-{{ l.id }}" method="post" action="/planillas/{{ p.id }}/lineas/{{ l.id }}/quitar" onsubmit="return confirm('¿Quitar a {{ l.empleado.nombre_completo }} de esta planilla?')"><input type="hidden" name="csrf" value="{{ csrf }}"></form>{% endfor %}
 
 {% if disponibles %}
 <form method="post" action="/planillas/{{ p.id }}/agregar" class="tarjeta">

@@ -20,13 +20,16 @@
   <div class="acciones"><button class="btn">Generar</button></div>
 </form>
 
+<form method="get" class="filtros">
+  <select name="patrono" onchange="this.form.submit()"><option value="">Todos los patronos</option>{% for e in empresas %}<option value="{{ e.id }}" {{ 'selected' if f_patrono == e.id|string }}>{{ e.razon_social }}</option>{% endfor %}</select>
+</form>
 <div class="tabla-scroll">
 <table class="tarjeta">
   <thead><tr><th>Tipo</th><th>Patrono</th><th>Período</th><th>Pago</th><th class="num">Colaboradores</th><th class="num">Líquido</th><th>Estado</th></tr></thead>
   <tbody>
   {% for p in lista %}
     <tr>
-      <td><a href="/planillas/{{ p.id }}">{{ p.nombre_tipo }}</a>{% if p.tipo == 'liquidacion' and p.lineas %}: {{ p.lineas[0].empleado.nombre_completo }}{% endif %}</td>
+      <td><a href="/planillas/{{ p.id }}{{ '?patrono=' ~ f_patrono if f_patrono and not p.empresa_id }}">{{ p.nombre_tipo }}</a>{% if p.tipo == 'liquidacion' and p.lineas %}: {{ p.lineas[0].empleado.nombre_completo }}{% endif %}</td>
       <td>{{ p.nombre_patrono }}</td>
       <td>{{ p.desde|fecha }} al {{ p.hasta|fecha }}</td>
       <td>{{ p.fecha_pago|fecha }}</td>

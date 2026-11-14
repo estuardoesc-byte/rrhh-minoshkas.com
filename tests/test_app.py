@@ -179,6 +179,7 @@ def test_planilla_quincenal_y_cierre(client):
         otros = [l.id for l in db.get(Planilla, pid).lineas]
     datos = {"csrf": token, f"dias_no_laborados_{lid}": "1"}
     datos.update({f"firmado_{i}": "1" for i in otros})
+    datos.update({f"linea_{i}": "1" for i in otros})
     client.post(f"/planillas/{pid}/guardar", data=datos)
     with SessionLocal() as db:
         assert db.get(PlanillaLinea, lid).salario == Decimal("1781.22")  # 1908.45 - 127.23

@@ -9,6 +9,7 @@
   <form method="get" class="acciones-fila">
     <select name="mes">{% for m in meses %}<option value="{{ loop.index }}" {{ 'selected' if loop.index == mes }}>{{ m|capitalize }}</option>{% endfor %}</select>
     <input type="number" name="anio" value="{{ anio }}" min="2020" max="2100" style="width:6rem">
+    <select name="patrono"><option value="">Todos los patronos</option>{% for nombre, r in resumen %}<option {{ 'selected' if f_patrono == nombre }}>{{ nombre }}</option>{% endfor %}</select>
     <button class="btn secundario">Ver</button>
     <a class="btn secundario" href="/conciliacion/excel?anio={{ anio }}&mes={{ mes }}">Excel</a>
   </form>

@@ -92,14 +92,14 @@ def test_escribir_encima_dias_y_restablecer(client):
     l = _linea(pid, libni)
     token = csrf(client, f"/planillas/{pid}")
     # Pagó doble el 1 de noviembre: 16 días, y Q75 de comisiones
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"dias_{l.id}": "16", f"salario_{l.id}": str(l.salario),
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"dias_{l.id}": "16", f"salario_{l.id}": str(l.salario),
                                                   f"liquido_{l.id}": str(l.liquido), f"comisiones_{l.id}": "75"})
     l = _linea(pid, libni)
     assert l.dias == 16 and l.salario == D("1866.67") and l.liquido == D("1941.67")
     assert json.loads(l.manual) == {"dias": "16"}
 
     # Escribe encima del pago; el líquido se recalcula solo
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"salario_{l.id}": "1900", f"comisiones_{l.id}": "75"})
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"salario_{l.id}": "1900", f"comisiones_{l.id}": "75"})
     l = _linea(pid, libni)
     assert l.salario == D("1900.00") and l.liquido == D("1975.00")
 
@@ -111,12 +111,12 @@ def test_escribir_encima_dias_y_restablecer(client):
     assert _linea(pid, libni).salario == D("1900.00")
 
     # Restablecer vuelve al cálculo con la ficha nueva
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"reset_{l.id}": "1", f"comisiones_{l.id}": "0"})
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"reset_{l.id}": "1", f"comisiones_{l.id}": "0"})
     l = _linea(pid, libni)
     assert l.manual == "" and l.dias == 15 and l.salario == D("2000.00") and l.liquido == D("2000.00")
 
     # Recibo cuadra aunque el líquido se escriba a mano
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"liquido_{l.id}": "1950"})
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"liquido_{l.id}": "1950"})
     r = client.get(f"/planillas/{pid}/recibos?linea={l.id}")
     assert "Ajuste" in r.text and "Un mil novecientos cincuenta quetzales" in r.text
 
@@ -228,10 +228,48 @@ def test_ingreso_rapido_y_fin_de_mes_con_dia_doble(client):
     pid = _crear(client, "fin_mes", [isc], mes=9)
     l = _linea(pid, libni)
     token = csrf(client, f"/planillas/{pid}")
-    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"dia_doble_{l.id}": "127.23", f"otros_descuentos_{l.id}": "50",
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"dia_doble_{l.id}": "127.23", f"otros_descuentos_{l.id}": "50",
                                                   f"concepto_descuentos_{l.id}": "Pasajes"})
     l = _linea(pid, libni)
     # IGSS sobre salario + día doble; sin anticipo ese mes
     assert l.igss == D("190.50") and l.liquido == D("3816.90") + D("250") + D("127.23") - D("190.50") - D("50")
     r = client.get(f"/planillas/{pid}/recibos?linea={l.id}")
     assert "Día doble" in r.text and "Pasajes" in r.text
+
+
+def test_montos_con_formato_guatemalteco_y_filtro(client):
+    login(client)
+    isc, girl, libni, vanessa, susp = _base()
+    pid = _crear(client, "admin1", [isc, girl], mes=12)
+    l = _linea(pid, vanessa)
+    token = csrf(client, f"/planillas/{pid}")
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{l.id}": "1", f"salario_{l.id}": "Q 1.500,00",
+                                                  f"otros_descuentos_{l.id}": "25,50", f"firmado_{l.id}": "1"})
+    l = _linea(pid, vanessa)
+    assert l.salario == D("1500.00") and l.otros_descuentos == D("25.50") and l.firmado
+    # Guardar con filtro por patrono no toca a los del otro patrono
+    r = client.get(f"/planillas/{pid}?patrono={isc}")
+    assert f'href="/empleados/{libni}"' in r.text and f'href="/empleados/{vanessa}"' not in r.text
+    otra = _linea(pid, libni)
+    client.post(f"/planillas/{pid}/guardar", data={"csrf": token, f"linea_{otra.id}": "1", f"salario_{otra.id}": str(otra.salario),
+                                                  "volver_patrono": str(isc)})
+    assert _linea(pid, vanessa).firmado and _linea(pid, vanessa).salario == D("1500.00")
+    r = client.get(f"/planillas?patrono={girl}")
+    assert f"/planillas/{pid}" in r.text
+    r = client.get(f"/empleados/rapido?patrono={girl}")
+    assert f'href="/empleados/{vanessa}"' in r.text and f'href="/empleados/{libni}"' not in r.text
+
+    # La ficha acepta "3.000,00" y avisa quién tiene el DPI repetido
+    with SessionLocal() as db:
+        db.get(Empleado, libni).dpi = "3904306680101"
+        db.commit()
+    token = csrf(client, f"/empleados/{vanessa}/editar")
+    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "3904306680101", "salario_base": "3.000,00",
+                                                         "estado": "activo", "tipo_contrato": "indefinido", "jornada": "diurna", "tiempo": "parcial"})
+    assert "Libni Mux" in r.text
+    r = client.post(f"/empleados/{vanessa}/editar", data={"csrf": token, "nombres": "Vanessa", "dpi": "", "salario_base": "3.000,00",
+                                                         "estado": "activo", "tipo_contrato": "indefinido", "jornada": "diurna", "tiempo": "parcial"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    with SessionLocal() as db:
+        assert db.get(Empleado, vanessa).salario_base == D("3000.00")

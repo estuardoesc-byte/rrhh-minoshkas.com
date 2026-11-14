@@ -71,9 +71,29 @@ def campos(tipo: str):
     return CAMPOS[grupo(tipo)]
 
 
+def normalizar_numero(t: str) -> str:
+    """Acepta "3,000.00", "3.000,00", "3000,50", "3000.50" y "3,000". Devuelve "3000.00"."""
+    if "," in t and "." in t:
+        # El separador que aparece de último es el de decimales.
+        if t.rfind(",") > t.rfind("."):
+            t = t.replace(".", "").replace(",", ".")
+        else:
+            t = t.replace(",", "")
+    elif "," in t:
+        partes = t.split(",")
+        if len(partes) == 2 and len(partes[1]) in (1, 2):
+            t = partes[0] + "." + partes[1]  # coma decimal: 3000,50
+        else:
+            t = t.replace(",", "")  # coma de miles: 3,000
+    elif t.count(".") > 1 or (t.count(".") == 1 and len(t.split(".")[1]) == 3 and len(t.split(".")[0]) <= 3 and t.split(".")[0] != "0"):
+        t = t.replace(".", "")  # punto de miles: 3.000 o 1.000.000
+    return t
+
+
 def valor_numerico(texto, entero: bool = False):
     """Lee un número escrito en la planilla ("Q1,750.00", "1750", ""). Devuelve None si no es número."""
-    t = str(texto if texto is not None else "").replace("Q", "").replace(",", "").strip()
+    t = str(texto if texto is not None else "").replace("Q", "").replace("q", "").replace(" ", "").strip()
+    t = normalizar_numero(t)
     if t == "":
         return 0 if entero else CERO
     try:

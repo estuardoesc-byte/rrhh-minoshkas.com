@@ -18,11 +18,16 @@
   </div>
   <a class="btn secundario" href="/empleados">Volver a colaboradores</a>
 </div>
+<form method="get" class="filtros">
+  <select name="patrono" onchange="this.form.submit()"><option value="">Todos los patronos</option><option value="sin" {{ 'selected' if f_patrono == 'sin' }}>Sin patrono</option>{% for e in empresas %}<option value="{{ e.id }}" {{ 'selected' if f_patrono == e.id|string }}>{{ e.razon_social }}</option>{% endfor %}</select>
+  <label class="check"><input type="checkbox" name="todos" value="1" {{ 'checked' if todos }} onchange="this.form.submit()"> Mostrar también los inactivos</label>
+</form>
 {% if aviso %}<p class="aviso">{{ aviso }}</p>{% endif %}
 {% if errores %}<div class="alerta"><ul>{% for x in errores %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
 <p class="sutil"><strong>Salario IGSS</strong> es el que se reporta y sale en el fin de mes; puede ser menor al mínimo si es tiempo parcial. <strong>Salario real</strong> es lo que de verdad se paga en la administrativa (vacío = el mismo). <strong>Anticipo fijo</strong> vacío = mitad del salario real.</p>
 <form method="post" action="/empleados/rapido">
 <input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="f_patrono" value="{{ f_patrono }}"><input type="hidden" name="f_todos" value="{{ '1' if todos }}">
 <div class="tabla-scroll tarjeta">
 <table class="planilla">
   <thead><tr>{% for c, etq, clase in campos %}<th>{{ etq }}</th>{% endfor %}<th></th></tr></thead>
